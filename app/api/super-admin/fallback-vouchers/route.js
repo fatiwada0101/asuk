@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 import { createHotspotUser, isMikroTikOnline } from '@/lib/mikrotik';
 
-// GET — List fallback vouchers with server-side pagination, search, and summary
+// GET — List fallback vouchers with server-side pagination, search, and plan summary
 export async function GET(request) {
   if (!(await validateAdminAuth(request))) return unauthorizedResponse();
 
@@ -18,7 +18,7 @@ export async function GET(request) {
     // 1. Fetch full counts & summary (lightweight query for KPI cards)
     const { data: allRows, error: summaryErr } = await supabaseAdmin
       .from('fallback_vouchers')
-      .select('profile_name, duration, is_used');
+      .select('profile_name, plan_id, duration, is_used');
 
     if (summaryErr) throw summaryErr;
 
@@ -37,8 +37,16 @@ export async function GET(request) {
 
       const p = v.profile_name || 'Default';
       if (!summary[p]) {
-        summary[p] = { profile_name: p, duration: v.duration, total: 0, available: 0, used: 0 };
+        summary[p] = {
+          profile_name: p,
+          plan_id: v.plan_id || null,
+          duration: v.duration,
+          total: 0,
+          available: 0,
+          used: 0,
+        };
       }
+      if (!summary[p].plan_id && v.plan_id) summary[p].plan_id = v.plan_id;
       summary[p].total++;
       if (v.is_used) {
         summary[p].used++;
@@ -53,7 +61,7 @@ export async function GET(request) {
       .select('*', { count: 'exact' });
 
     if (profile_name && profile_name !== 'all') {
-      query = query.eq('profile_name', profile_name);
+      query = query.or(`profile_name.eq."${profile_name}",plan_id.eq."${profile_name}"`);
     }
 
     if (status === 'available') {
@@ -63,7 +71,7 @@ export async function GET(request) {
     }
 
     if (search) {
-      query = query.or(`voucher_code.ilike.%${search}%,profile_name.ilike.%${search}%`);
+      query = query.or(`voucher_code.ilike.%${search}%,profile_name.ilike.%${search}%,plan_id.ilike.%${search}%`);
     }
 
     const from = (page - 1) * limit;
@@ -105,7 +113,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { action, profile_name, duration } = body;
+    const { action, profile_name, plan_id, duration } = body;
 
     if (!profile_name || !duration) {
       return NextResponse.json(
@@ -117,9 +125,28 @@ export async function POST(request) {
     // ── ACTION A: 1-Click Auto-Generate on MikroTik Router ──────────────
     if (action === 'auto_generate') {
       const quantity = Math.min(100, Math.max(1, parseInt(body.quantity || '10', 10)));
-      const devices = Number(body.devices) || 1;
-      const uploadSpeed = body.upload_speed || '12M';
-      const downloadSpeed = body.download_speed || '12M';
+
+      // Read default hotspot settings for fallback values
+      let defaultDevices = 1;
+      let defaultUploadSpeed = '12M';
+      let defaultDownloadSpeed = '12M';
+      try {
+        const { data: hsSetting } = await supabaseAdmin
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'hotspot_settings')
+          .maybeSingle();
+        if (hsSetting?.value) {
+          defaultDevices = Number(hsSetting.value.default_devices) || 1;
+          defaultUploadSpeed = hsSetting.value.default_upload_speed || '12M';
+          defaultDownloadSpeed = hsSetting.value.default_download_speed || '12M';
+          if (!hsSetting.value.sharing_enabled) defaultDevices = 1;
+        }
+      } catch (e) {}
+
+      const devices = body.devices !== undefined ? Number(body.devices) : defaultDevices;
+      const uploadSpeed = body.upload_speed || defaultUploadSpeed;
+      const downloadSpeed = body.download_speed || defaultDownloadSpeed;
       const rateLimit = `${uploadSpeed}/${downloadSpeed}`;
 
       // 1. Pre-check router connectivity
@@ -153,13 +180,14 @@ export async function POST(request) {
             password: code,
             profile: profile_name,
             limitUptime,
-            comment: `Fallback Pool Reserve: ${profile_name}`,
+            comment: `Fallback Pool Reserve: ${profile_name}${plan_id ? ` [${plan_id}]` : ''}`,
             shared_users: devices,
             rate_limit: rateLimit,
           });
 
           createdVouchers.push({
             voucher_code: code,
+            plan_id: plan_id || null,
             profile_name,
             duration,
             is_used: false,
@@ -167,7 +195,6 @@ export async function POST(request) {
         } catch (err) {
           console.error(`Error provisioning router voucher ${code}:`, err.message);
           errors.push(err.message);
-          // If connection failed completely, abort early
           if (err.message.includes('timeout') || err.message.includes('Cannot connect')) {
             break;
           }
@@ -217,6 +244,7 @@ export async function POST(request) {
 
     const rows = uniqueCodes.map((code) => ({
       voucher_code: code,
+      plan_id: plan_id || null,
       profile_name,
       duration,
       is_used: false,
@@ -240,12 +268,28 @@ export async function POST(request) {
   }
 }
 
-// DELETE — Delete fallback voucher(s)
+// DELETE — Delete fallback voucher(s) or prune used vouchers
 export async function DELETE(request) {
   if (!(await validateAdminAuth(request))) return unauthorizedResponse();
 
   try {
-    const { id, profile_name, clear_unused } = await request.json();
+    const { id, profile_name, clear_unused, prune_used } = await request.json();
+
+    // Maintenance action: Prune used vouchers
+    if (prune_used) {
+      let query = supabaseAdmin
+        .from('fallback_vouchers')
+        .delete()
+        .eq('is_used', true);
+
+      if (profile_name && profile_name !== 'all') {
+        query = query.eq('profile_name', profile_name);
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+      return NextResponse.json({ success: true, pruned: true });
+    }
 
     if (id) {
       const { error } = await supabaseAdmin

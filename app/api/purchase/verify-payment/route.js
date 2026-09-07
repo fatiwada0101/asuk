@@ -117,10 +117,11 @@ export async function POST(request) {
     } catch (routerErr) {
       console.error('Router provisioning error after payment:', routerErr.message);
 
-      // Atomic, race-condition safe claim from fallback pool
+      // Atomic, race-condition safe claim from fallback pool (strict plan isolation)
       const { data: claimedRows, error: claimErr } = await supabaseAdmin
         .rpc('claim_fallback_voucher', {
           p_profile_name: plan_name,
+          p_plan_id: plan_id || null,
           p_user_id: user_id || null,
         });
 

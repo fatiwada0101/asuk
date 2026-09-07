@@ -51,6 +51,12 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
+  // Server-side pagination & search states
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
+
   const getDateRange = useCallback((filter) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -81,7 +87,15 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
     setFinLoading(true);
     try {
       const { start, end } = getDateRange(dateFilter);
-      const res = await fetch(`/api/super-admin/finance?start_date=${start}&end_date=${end}`, {
+      const params = new URLSearchParams({
+        start_date: start,
+        end_date: end,
+        page: String(page),
+        limit: String(limit),
+      });
+      if (search.trim()) params.append('search', search.trim());
+
+      const res = await fetch(`/api/super-admin/finance?${params.toString()}`, {
         headers: adminHeaders(),
       });
       if (res.ok) {
@@ -91,17 +105,24 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       }
     } catch { showToast('Network error'); }
     setFinLoading(false);
-  }, [dateFilter, getDateRange, adminHeaders, showToast]);
+  }, [dateFilter, getDateRange, page, limit, search, adminHeaders, showToast]);
 
   useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
 
   const exportPDF = async () => {
-    if (!financeData) return;
     try {
+      setExporting(true);
       const { jsPDF } = await import('jspdf');
       await import('jspdf-autotable');
       const doc = new jsPDF();
       const { start, end } = getDateRange(dateFilter);
+
+      // Fetch all records for export across date range
+      const res = await fetch(`/api/super-admin/finance?start_date=${start}&end_date=${end}&export_all=true`, {
+        headers: adminHeaders(),
+      });
+      const dataToExport = res.ok ? await res.json() : financeData;
+      if (!dataToExport) return;
 
       doc.setFontSize(18);
       doc.text('Finance Report', 14, 22);
@@ -113,15 +134,15 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       // Summary
       doc.setFontSize(12);
       doc.setTextColor(0);
-      doc.text(`Total Revenue: ${formatPrice(financeData.summary.totalRevenue)}`, 14, 48);
-      doc.text(`Total Sales: ${financeData.summary.totalSales}`, 14, 56);
-      doc.text(`Avg Order: ${formatPrice(financeData.summary.avgOrderValue)}`, 14, 64);
-      if (financeData.summary.topPlan) {
-        doc.text(`Top Plan: ${financeData.summary.topPlan.name} (${financeData.summary.topPlan.count} sold)`, 14, 72);
+      doc.text(`Total Revenue: ${formatPrice(dataToExport.summary?.totalRevenue || 0)}`, 14, 48);
+      doc.text(`Total Sales: ${dataToExport.summary?.totalSales || 0}`, 14, 56);
+      doc.text(`Avg Order: ${formatPrice(dataToExport.summary?.avgOrderValue || 0)}`, 14, 64);
+      if (dataToExport.summary?.topPlan) {
+        doc.text(`Top Plan: ${dataToExport.summary.topPlan.name} (${dataToExport.summary.topPlan.count} sold)`, 14, 72);
       }
 
       // Transaction table
-      const rows = financeData.transactions.map(t => [
+      const rows = (dataToExport.transactions || []).map(t => [
         new Date(t.date).toLocaleDateString(),
         t.voucher_code,
         t.plan || '-',
@@ -139,18 +160,26 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       });
 
       doc.save(`finance_report_${start}_to_${end}.pdf`);
-      showToast('✅ PDF exported!');
+      showToast('✅ Full PDF exported!');
     } catch (err) {
       console.error('PDF export error:', err);
       showToast('Failed to export PDF');
+    } finally {
+      setExporting(false);
     }
   };
 
   const exportExcel = async () => {
-    if (!financeData) return;
     try {
+      setExporting(true);
       const XLSX = await import('xlsx');
       const { start, end } = getDateRange(dateFilter);
+
+      const res = await fetch(`/api/super-admin/finance?start_date=${start}&end_date=${end}&export_all=true`, {
+        headers: adminHeaders(),
+      });
+      const dataToExport = res.ok ? await res.json() : financeData;
+      if (!dataToExport) return;
 
       // Summary sheet
       const summaryData = [
@@ -158,16 +187,16 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
         [`Period: ${start} to ${end}`],
         [],
         ['Metric', 'Value'],
-        ['Total Revenue', financeData.summary.totalRevenue],
-        ['Total Sales', financeData.summary.totalSales],
-        ['Avg Order Value', financeData.summary.avgOrderValue],
-        ['Top Plan', financeData.summary.topPlan?.name || '-'],
+        ['Total Revenue', dataToExport.summary?.totalRevenue || 0],
+        ['Total Sales', dataToExport.summary?.totalSales || 0],
+        ['Avg Order Value', dataToExport.summary?.avgOrderValue || 0],
+        ['Top Plan', dataToExport.summary?.topPlan?.name || '-'],
       ];
       const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
 
       // Transactions sheet
       const txHeaders = ['Date', 'Voucher Code', 'Plan', 'Amount (₦)', 'Status'];
-      const txRows = financeData.transactions.map(t => [
+      const txRows = (dataToExport.transactions || []).map(t => [
         new Date(t.date).toLocaleDateString(),
         t.voucher_code,
         t.plan || '-',
@@ -178,7 +207,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
 
       // Daily breakdown sheet
       const dailyHeaders = ['Date', 'Sales Count', 'Revenue (₦)'];
-      const dailyRows = (financeData.dailyBreakdown || []).map(d => [d.date, d.count, d.revenue]);
+      const dailyRows = (dataToExport.dailyBreakdown || []).map(d => [d.date, d.count, d.revenue]);
       const ws3 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
 
       const wb = XLSX.utils.book_new();
@@ -187,15 +216,22 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       XLSX.utils.book_append_sheet(wb, ws3, 'Daily Breakdown');
 
       XLSX.writeFile(wb, `finance_report_${start}_to_${end}.xlsx`);
-      showToast('✅ Excel exported!');
+      showToast('✅ Full Excel exported!');
     } catch (err) {
       console.error('Excel export error:', err);
       showToast('Failed to export Excel');
+    } finally {
+      setExporting(false);
     }
   };
 
   const summary = financeData?.summary || {};
   const transactions = financeData?.transactions || [];
+  const pagination = financeData?.pagination || { page: 1, limit: 20, total: 0, totalPages: 1 };
+  const totalMatching = pagination.total || 0;
+  const totalPages = pagination.totalPages || 1;
+  const fromRecord = totalMatching === 0 ? 0 : (page - 1) * limit + 1;
+  const toRecord = Math.min(totalMatching, page * limit);
 
   return (
     <>
@@ -207,13 +243,13 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
             <p className="sa-card-sub">Revenue analytics, sales reports & exports</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="sa-btn-primary" onClick={exportPDF} disabled={!financeData || finLoading}
+            <button className="sa-btn-primary" onClick={exportPDF} disabled={!financeData || finLoading || exporting}
               style={{ fontSize: 13, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              📄 Export PDF
+              {exporting ? '⏳ Exporting...' : '📄 Export PDF'}
             </button>
-            <button className="sa-btn-outline" onClick={exportExcel} disabled={!financeData || finLoading}
+            <button className="sa-btn-outline" onClick={exportExcel} disabled={!financeData || finLoading || exporting}
               style={{ fontSize: 13, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              📊 Export Excel
+              {exporting ? '⏳ Exporting...' : '📊 Export Excel'}
             </button>
           </div>
         </div>
@@ -228,7 +264,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
           ].map(f => (
             <button key={f.id}
               className={`sa-btn-outline ${dateFilter === f.id ? 'sa-filter-active' : ''}`}
-              onClick={() => setDateFilter(f.id)}
+              onClick={() => { setDateFilter(f.id); setPage(1); }}
               style={{ fontSize: 12, padding: '6px 14px', borderRadius: 20,
                 background: dateFilter === f.id ? 'var(--primary-color, #7257FF)' : 'transparent',
                 color: dateFilter === f.id ? '#fff' : 'inherit',
@@ -248,7 +284,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
               <label>End Date</label>
               <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
             </div>
-            <button className="sa-btn-primary" onClick={fetchFinanceData}
+            <button className="sa-btn-primary" onClick={() => { setPage(1); fetchFinanceData(); }}
               style={{ alignSelf: 'flex-end', padding: '10px 20px' }}>
               Apply
             </button>
@@ -284,41 +320,146 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
             </div>
           </div>
 
-          {/* Transactions Table */}
+          {/* Transactions Table with Search & Pagination */}
           <div className="sa-glass-card" style={{ marginTop: 20 }}>
-            <div className="sa-card-header">
+            <div className="sa-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <h3 className="sa-card-title">Transactions</h3>
-                <p className="sa-card-sub">{transactions.length} paid purchases</p>
+                <h3 className="sa-card-title">Transactions Ledger</h3>
+                <p className="sa-card-sub">
+                  Showing {fromRecord}–{toRecord} of {totalMatching} paid purchases
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Search voucher or plan..."
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  style={{
+                    background: '#1A1A24',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    fontSize: '0.85rem',
+                    minWidth: 180,
+                  }}
+                />
+                <select
+                  value={limit}
+                  onChange={e => { setLimit(Number(e.target.value)); setPage(1); }}
+                  style={{
+                    background: '#1A1A24',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
               </div>
             </div>
+
             {transactions.length === 0 ? (
               <div style={{ padding: 32, textAlign: 'center', color: '#8E8E93' }}>
-                No transactions in this period
+                {finLoading ? 'Loading transactions...' : 'No transactions in this period'}
               </div>
             ) : (
-              <div className="sa-table-responsive">
-                <table className="sa-modern-table">
-                  <thead><tr>
-                    <th>Date</th><th>Voucher</th><th>Plan</th><th>Amount</th><th>Status</th>
-                  </tr></thead>
-                  <tbody>
-                    {transactions.map(t => (
-                      <tr key={t.id}>
-                        <td>{new Date(t.date).toLocaleDateString()}</td>
-                        <td><code style={{ fontSize: 12 }}>{t.voucher_code}</code></td>
-                        <td>{t.plan || '—'}</td>
-                        <td><strong>{formatPrice(t.amount)}</strong></td>
-                        <td>
-                          <span className={`sa-badge ${t.used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
-                            {t.used ? 'Used' : 'Active'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="sa-table-responsive">
+                  <table className="sa-modern-table">
+                    <thead><tr>
+                      <th>Date</th><th>Voucher</th><th>Plan</th><th>Amount</th><th>Status</th>
+                    </tr></thead>
+                    <tbody>
+                      {transactions.map(t => (
+                        <tr key={t.id}>
+                          <td>{new Date(t.date).toLocaleDateString()}</td>
+                          <td><code style={{ fontSize: 12 }}>{t.voucher_code}</code></td>
+                          <td>{t.plan || '—'}</td>
+                          <td><strong>{formatPrice(t.amount)}</strong></td>
+                          <td>
+                            <span className={`sa-badge ${t.used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
+                              {t.used ? 'Used' : 'Active'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Toolbar */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  paddingTop: 16,
+                  borderTop: '1px solid rgba(255,255,255,0.08)'
+                }}>
+                  <span style={{ fontSize: '0.85rem', color: '#8E8E93' }}>
+                    Showing <strong>{fromRecord}</strong> to <strong>{toRecord}</strong> of <strong>{totalMatching}</strong> transactions (Page {page} of {totalPages})
+                  </span>
+
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="sa-btn-outline"
+                      disabled={page <= 1 || finLoading}
+                      onClick={() => setPage(1)}
+                      style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
+                    >
+                      « First
+                    </button>
+                    <button
+                      type="button"
+                      className="sa-btn-outline"
+                      disabled={page <= 1 || finLoading}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
+                    >
+                      ‹ Prev
+                    </button>
+
+                    <span style={{
+                      padding: '6px 12px',
+                      background: 'rgba(114, 87, 255, 0.15)',
+                      borderRadius: 6,
+                      color: '#C4B5FD',
+                      fontWeight: 600,
+                      fontSize: '0.85rem'
+                    }}>
+                      {page}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="sa-btn-outline"
+                      disabled={page >= totalPages || finLoading}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
+                    >
+                      Next ›
+                    </button>
+                    <button
+                      type="button"
+                      className="sa-btn-outline"
+                      disabled={page >= totalPages || finLoading}
+                      onClick={() => setPage(totalPages)}
+                      style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
+                    >
+                      Last »
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </>
@@ -340,6 +481,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(null);
+  const [pruning, setPruning] = useState(false);
 
   // Form states
   const [inputMode, setInputMode] = useState('auto'); // 'auto' | 'manual'
@@ -349,6 +491,12 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
   const [autoQuantity, setAutoQuantity] = useState(10);
   const [voucherCodes, setVoucherCodes] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
+
+  // Customizable Default Router Settings (Defaults: 1 device sharing, 12M upload, 12M download)
+  const [customDevices, setCustomDevices] = useState(1);
+  const [customUpload, setCustomUpload] = useState('12M');
+  const [customDownload, setCustomDownload] = useState('12M');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Filter & Pagination states
   const [page, setPage] = useState(1);
@@ -393,30 +541,38 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     if (plans && plans.length > 0 && !selectedPlan) {
       setSelectedPlan(plans[0].name);
       setDuration(plans[0].duration || '24h');
+      setCustomDevices(plans[0].devices || 1);
+      setCustomUpload(plans[0].upload_speed || '12M');
+      setCustomDownload(plans[0].download_speed || '12M');
     }
   }, [plans, selectedPlan]);
 
-  const handlePlanChange = (planName) => {
-    setSelectedPlan(planName);
-    const found = plans?.find(p => p.name === planName);
+  const handlePlanChange = (planIdentifier) => {
+    setSelectedPlan(planIdentifier);
+    const found = plans?.find(p => p.name === planIdentifier || p.id === planIdentifier);
     if (found?.duration) setDuration(found.duration);
+    if (found?.devices) setCustomDevices(found.devices);
+    if (found?.upload_speed) setCustomUpload(found.upload_speed);
+    if (found?.download_speed) setCustomDownload(found.download_speed);
   };
 
-  // 1-Click Auto-Generate directly on MikroTik Router
+  // 1-Click Auto-Generate directly on MikroTik Router with Strict Plan Binding
   const handleAutoGenerate = async (planToGen, countToGen) => {
-    const targetPlan = planToGen || (selectedPlan === '__custom__' ? customPlan.trim() : selectedPlan);
+    const target = planToGen || (selectedPlan === '__custom__' ? customPlan.trim() : selectedPlan);
     const qty = countToGen || autoQuantity || 10;
 
-    if (!targetPlan) {
+    if (!target) {
       showToast('Please select or enter a plan name');
       return;
     }
 
-    const planObj = plans?.find(p => p.name === targetPlan);
+    const planObj = plans?.find(p => p.name === target || p.id === target);
+    const targetPlanId = planObj?.id || target;
+    const targetProfileName = planObj?.name || target;
     const dur = planObj?.duration || duration || '24h';
 
     setGenerating(true);
-    setGeneratingPlan(targetPlan);
+    setGeneratingPlan(target);
     try {
       const res = await fetch('/api/super-admin/fallback-vouchers', {
         method: 'POST',
@@ -426,18 +582,19 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
         },
         body: JSON.stringify({
           action: 'auto_generate',
-          profile_name: targetPlan,
+          plan_id: targetPlanId,
+          profile_name: targetProfileName,
           duration: dur,
           quantity: qty,
-          devices: planObj?.devices || 1,
-          upload_speed: planObj?.upload_speed || '12M',
-          download_speed: planObj?.download_speed || '12M',
+          devices: customDevices,
+          upload_speed: customUpload,
+          download_speed: customDownload,
         }),
       });
 
       const json = await res.json();
       if (res.ok) {
-        showToast(`⚡ Generated & seeded ${json.added} vouchers on MikroTik router directly into fallback pool!`);
+        showToast(`⚡ Generated & seeded ${json.added} vouchers for "${targetProfileName}" on MikroTik (Sharing: ${customDevices}, ${customUpload}/${customDownload})!`);
         fetchData();
       } else {
         showToast(`❌ ${json.error || 'Failed to auto-generate vouchers'}`);
@@ -462,6 +619,10 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
       return;
     }
 
+    const planObj = plans?.find(p => p.name === finalPlan || p.id === finalPlan);
+    const targetPlanId = planObj?.id || finalPlan;
+    const targetProfileName = planObj?.name || finalPlan;
+
     setSubmittingManual(true);
     try {
       const res = await fetch('/api/super-admin/fallback-vouchers', {
@@ -471,7 +632,8 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          profile_name: finalPlan,
+          plan_id: targetPlanId,
+          profile_name: targetProfileName,
           duration: duration || '24h',
           codes: voucherCodes,
         }),
@@ -535,6 +697,32 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     }
   };
 
+  // Housekeeping tool for thousands of vouchers: prune already redeemed vouchers
+  const handlePruneUsed = async () => {
+    if (!confirm('Prune all redeemed/used fallback vouchers? This cleans old records to maintain peak performance and keep the pool lean.')) return;
+    setPruning(true);
+    try {
+      const res = await fetch('/api/super-admin/fallback-vouchers', {
+        method: 'DELETE',
+        headers: {
+          ...adminHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prune_used: true }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showToast(`🧹 Cleaned up ${json.pruned || 0} redeemed vouchers from reserve pool!`);
+        fetchData();
+      } else {
+        showToast(`❌ ${json.error || 'Failed to prune vouchers'}`);
+      }
+    } catch {
+      showToast('Network error pruning vouchers');
+    }
+    setPruning(false);
+  };
+
   const lowStockPlans = (data.summary || []).filter(s => s.available < 5);
   const totalMatching = data.pagination?.total || 0;
   const totalPages = data.pagination?.totalPages || 1;
@@ -554,12 +742,12 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
           }}>
             🛡️
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <h3 className="sa-card-title" style={{ fontSize: '1.1rem', marginBottom: 4 }}>
-              Offline Fallback Voucher Pool
+              Offline Fallback Voucher Pool (Strict Plan Isolation)
             </h3>
             <p className="sa-card-sub" style={{ margin: 0, lineHeight: 1.5 }}>
-              Vouchers in this reserve protect you when your MikroTik router loses internet connectivity. You can <strong>1-Click Auto-Generate</strong> vouchers directly onto the router and into this database, or paste pre-generated codes. All voucher claims are 100% atomic with <strong>zero race conditions</strong>!
+              Vouchers in this reserve protect you when your MikroTik router loses internet connectivity. Users buying Daily, Weekly, or Monthly plans will <strong>strictly receive fallback vouchers matching their selected plan</strong>. Auto-generation defaults to 1 device sharing and 12MB upload/download with full customization.
             </p>
           </div>
         </div>
@@ -650,6 +838,11 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                         <span style={{ fontSize: '0.75rem', color: '#8E8E93', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>
                           {item.duration}
                         </span>
+                        {item.plan_id && (
+                          <span style={{ fontSize: '0.7rem', color: '#A78BFA', background: 'rgba(167, 139, 250, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                            {item.plan_id}
+                          </span>
+                        )}
                         {isLow && (
                           <span style={{
                             fontSize: '0.72rem',
@@ -771,7 +964,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 >
                   {(plans || []).map(p => (
                     <option key={p.id} value={p.name}>
-                      {p.name} ({p.duration} • {p.speed || 'Standard'})
+                      {p.name} ({p.duration} • {p.speed || '12MB/12MB'} • {p.devices || 1} Device)
                     </option>
                   ))}
                   <option value="__custom__">+ Custom Plan Name</option>
@@ -817,6 +1010,66 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 </div>
               </div>
 
+              {/* Collapsible Router Bandwidth & Limits Settings */}
+              <div style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}>
+                <div
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    color: '#C4B5FD',
+                  }}
+                >
+                  <span>⚙️ Default Settings ({customDevices} Device, ↑{customUpload} / ↓{customDownload})</span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{showAdvanced ? '▲ Collapse' : '▼ Tweak Defaults'}</span>
+                </div>
+
+                {showAdvanced && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 10 }}>
+                    <div className="sa-field-box">
+                      <label style={{ fontSize: '0.75rem' }}>Device Sharing</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={customDevices}
+                        onChange={e => setCustomDevices(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ fontSize: '0.8rem', padding: '6px 8px' }}
+                      />
+                    </div>
+                    <div className="sa-field-box">
+                      <label style={{ fontSize: '0.75rem' }}>Upload Speed</label>
+                      <input
+                        type="text"
+                        placeholder="12M"
+                        value={customUpload}
+                        onChange={e => setCustomUpload(e.target.value)}
+                        style={{ fontSize: '0.8rem', padding: '6px 8px' }}
+                      />
+                    </div>
+                    <div className="sa-field-box">
+                      <label style={{ fontSize: '0.75rem' }}>Download Speed</label>
+                      <input
+                        type="text"
+                        placeholder="12M"
+                        value={customDownload}
+                        onChange={e => setCustomDownload(e.target.value)}
+                        style={{ fontSize: '0.8rem', padding: '6px 8px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={{
                 background: 'rgba(114, 87, 255, 0.08)',
                 border: '1px solid rgba(114, 87, 255, 0.2)',
@@ -826,7 +1079,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 color: '#C4B5FD',
                 lineHeight: 1.4
               }}>
-                ⚡ <strong>Router Connected Auto-Stock:</strong> This directly communicates with your MikroTik REST API, provisions {autoQuantity} unique vouchers on RouterOS, and automatically seeds them into the Supabase fallback pool.
+                ⚡ <strong>Plan-Isolated Auto-Stock:</strong> This creates {autoQuantity} vouchers on your MikroTik router configured for 1 device sharing and {customUpload}/{customDownload} rate limits, and binds them strictly to the selected plan.
               </div>
 
               <button
@@ -922,6 +1175,36 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
               </button>
             </form>
           )}
+        </div>
+      </div>
+
+      {/* ── MAINTENANCE & SCALE HOUSEKEEPING CARD ── */}
+      <div className="sa-glass-card" style={{ marginTop: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#fff' }}>🧹 Pool Maintenance & Scale Housekeeping</h4>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: '#8E8E93' }}>
+              Keep your database lean and performant even when handling thousands of historical vouchers.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="sa-btn-outline"
+            disabled={pruning || data.stats.used === 0}
+            onClick={handlePruneUsed}
+            style={{
+              padding: '8px 16px',
+              fontSize: '0.82rem',
+              color: '#EF4444',
+              borderColor: 'rgba(239, 68, 68, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+            title="Prune all used vouchers from fallback table"
+          >
+            {pruning ? '⏳ Pruning...' : `🧹 Prune ${data.stats.used} Used Vouchers`}
+          </button>
         </div>
       </div>
 
@@ -1038,7 +1321,12 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                           {v.voucher_code}
                         </code>
                       </td>
-                      <td><strong>{v.profile_name}</strong></td>
+                      <td>
+                        <strong>{v.profile_name}</strong>
+                        {v.plan_id && (
+                          <div style={{ fontSize: '0.72rem', color: '#8E8E93' }}>ID: {v.plan_id}</div>
+                        )}
+                      </td>
                       <td>{v.duration}</td>
                       <td>
                         <span className={`sa-badge ${v.is_used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
