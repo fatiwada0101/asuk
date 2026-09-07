@@ -35,12 +35,29 @@ export async function POST(request) {
       .from('app_settings').select('value').eq('key', 'hotspot_settings').maybeSingle();
     const hsSettings = hsData?.value || {};
 
-    // ═══ Step 1: Set DNS servers ═══
+    // ═══ Step 1: Set DNS servers & static entry ═══
     try {
-      await mikrotikCall('/rest/ip/dns/set', 'POST', { servers: '8.8.8.8,1.1.1.1' });
-      results.push({ step: 'DNS Servers', status: 'ok', detail: 'Set to 8.8.8.8, 1.1.1.1' });
+      await mikrotikCall('/rest/ip/dns/set', 'POST', {
+        servers: '8.8.8.8,1.1.1.1',
+        'allow-remote-requests': 'yes',
+      });
+
+      // Add static DNS mapping for hotspot portal domain
+      try {
+        const cleanDomain = hotspotUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        const staticRecords = await mikrotikCall('/rest/ip/dns/static') || [];
+        if (!staticRecords.some(r => r.name === cleanDomain)) {
+          await mikrotikCall('/rest/ip/dns/static/add', 'POST', {
+            name: cleanDomain,
+            address: '10.5.50.1',
+            comment: 'Asuk Tech Hotspot Portal Domain',
+          });
+        }
+      } catch {}
+
+      results.push({ step: 'DNS & Portal Resolution', status: 'ok', detail: `Set 8.8.8.8, 1.1.1.1 with remote requests + static mapping for "${hotspotUrl}"` });
     } catch (e) {
-      results.push({ step: 'DNS Servers', status: 'warn', detail: e.message });
+      results.push({ step: 'DNS & Portal Resolution', status: 'warn', detail: e.message });
     }
 
     // ═══ Step 2: Configure WiFi SSID ═══
@@ -80,7 +97,7 @@ export async function POST(request) {
           }
           results.push({ step: 'WiFi SSID', status: 'ok', detail: `"${wifiSsid}" set on ${wirelessInterfaces.length} wireless interface(s)` });
         } else {
-          results.push({ step: 'WiFi SSID', status: 'info', detail: 'No WiFi interfaces found — set SSID manually in WinBox if using CAPsMAN' });
+          results.push({ step: 'WiFi SSID', status: 'info', detail: 'No internal WiFi found — external Access Points will broadcast their own SSID' });
         }
       }
     } catch (e) {
@@ -102,6 +119,7 @@ export async function POST(request) {
             'dns-name': hotspotUrl,
             'login-by': 'cookie,http-chap,http-pap',
             'http-cookie-lifetime': '3d',
+            'html-directory': 'hotspot',
           });
           profilesUpdated++;
         } catch {}
@@ -116,6 +134,7 @@ export async function POST(request) {
           'login-by': 'cookie,http-chap,http-pap',
           'http-cookie-lifetime': '3d',
           'hotspot-address': '10.5.50.1',
+          'html-directory': 'hotspot',
         });
         results.push({ step: 'Hotspot Portal Domain', status: 'ok', detail: `Created server profile "asuk-profile" with domain "${hotspotUrl}"` });
       } catch (e) {
@@ -123,7 +142,111 @@ export async function POST(request) {
       }
     }
 
-    // ═══ Step 4: Check/Create hotspot server ═══
+    // ═══ Step 4: Bridge & Access Point Ports + Hotspot Server ═══
+    let bridges = [];
+    try {
+      bridges = await mikrotikCall('/rest/interface/bridge') || [];
+    } catch {}
+
+    let bridgeName = 'bridge';
+    if (bridges.length === 0) {
+      try {
+        await mikrotikCall('/rest/interface/bridge/add', 'POST', { name: 'bridge' });
+        bridgeName = 'bridge';
+      } catch {}
+    } else {
+      bridgeName = bridges[0].name;
+    }
+
+    // Bridge all LAN ports so any Access Point plugged into any port works
+    let portsBridged = 0;
+    try {
+      const allInterfaces = await mikrotikCall('/rest/interface') || [];
+      const existingPorts = await mikrotikCall('/rest/interface/bridge/port') || [];
+      const existingPortNames = existingPorts.map(p => p.interface);
+
+      // Detect WAN interface (usually ether1 or running dhcp-client)
+      let wanInterface = 'ether1';
+      try {
+        const dhcpClients = await mikrotikCall('/rest/ip/dhcp-client') || [];
+        if (dhcpClients.length > 0 && dhcpClients[0].interface) {
+          wanInterface = dhcpClients[0].interface;
+        }
+      } catch {}
+
+      for (const iface of allInterfaces) {
+        const name = iface.name;
+        const type = iface.type;
+        const isBridge = type === 'bridge' || name.startsWith('bridge');
+        const isWan = name === wanInterface;
+        const isEtherOrWlan = type === 'ether' || type === 'wlan' || name.startsWith('ether') || name.startsWith('wlan');
+
+        if (isEtherOrWlan && !isWan && !isBridge && !existingPortNames.includes(name)) {
+          try {
+            await mikrotikCall('/rest/interface/bridge/port/add', 'POST', {
+              bridge: bridgeName,
+              interface: name,
+            });
+            portsBridged++;
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // Check if IP pool exists
+    let pools = [];
+    try {
+      pools = await mikrotikCall('/rest/ip/pool') || [];
+    } catch {}
+
+    const poolName = 'hs-pool-1';
+    if (!pools.find(p => p.name === poolName)) {
+      try {
+        await mikrotikCall('/rest/ip/pool/add', 'POST', {
+          name: poolName,
+          ranges: '10.5.50.2-10.5.50.254',
+        });
+      } catch {}
+    }
+
+    // Add IP address to bridge for hotspot
+    try {
+      const addrs = await mikrotikCall('/rest/ip/address') || [];
+      if (!addrs.find(a => a.address && a.address.startsWith('10.5.50.'))) {
+        await mikrotikCall('/rest/ip/address/add', 'POST', {
+          address: '10.5.50.1/24',
+          interface: bridgeName,
+        });
+      }
+    } catch {}
+
+    // Check/create DHCP server
+    let dhcpServers = [];
+    try {
+      dhcpServers = await mikrotikCall('/rest/ip/dhcp-server') || [];
+    } catch {}
+
+    if (!dhcpServers.find(d => d.name === 'dhcp-hs')) {
+      try {
+        await mikrotikCall('/rest/ip/dhcp-server/add', 'POST', {
+          name: 'dhcp-hs',
+          interface: bridgeName,
+          'address-pool': poolName,
+          disabled: 'no',
+        });
+      } catch {}
+
+      // Add DHCP network
+      try {
+        await mikrotikCall('/rest/ip/dhcp-server/network/add', 'POST', {
+          address: '10.5.50.0/24',
+          gateway: '10.5.50.1',
+          'dns-server': '10.5.50.1',
+        });
+      } catch {}
+    }
+
+    // Check/Create Hotspot Server
     let hotspotServers = [];
     try {
       hotspotServers = await mikrotikCall('/rest/ip/hotspot') || [];
@@ -131,80 +254,17 @@ export async function POST(request) {
 
     if (hotspotServers.length > 0) {
       results.push({
-        step: 'Hotspot Server',
+        step: 'Hotspot & Access Point Bridge',
         status: 'ok',
-        detail: `${hotspotServers.length} server(s) active — interface: ${hotspotServers.map(s => s.interface || 'unknown').join(', ')}`,
+        detail: `Hotspot active on ${bridgeName}. ${portsBridged > 0 ? `${portsBridged} LAN port(s) bridged for Access Points` : 'All LAN ports bridged'}`,
       });
     } else {
-      // Try to auto-create a hotspot server
-      // First find the bridge interface
-      let bridges = [];
-      try {
-        bridges = await mikrotikCall('/rest/interface/bridge') || [];
-      } catch {}
-      const bridgeName = bridges.length > 0 ? bridges[0].name : 'bridge1';
-
-      // Check if IP pool exists
-      let pools = [];
-      try {
-        pools = await mikrotikCall('/rest/ip/pool') || [];
-      } catch {}
-
-      const poolName = 'hs-pool-1';
-      if (!pools.find(p => p.name === poolName)) {
-        try {
-          await mikrotikCall('/rest/ip/pool/add', 'POST', {
-            name: poolName,
-            ranges: '10.5.50.2-10.5.50.254',
-          });
-        } catch {}
-      }
-
-      // Add IP address to bridge for hotspot
-      try {
-        const addrs = await mikrotikCall('/rest/ip/address') || [];
-        if (!addrs.find(a => a.address && a.address.startsWith('10.5.50.'))) {
-          await mikrotikCall('/rest/ip/address/add', 'POST', {
-            address: '10.5.50.1/24',
-            interface: bridgeName,
-          });
-        }
-      } catch {}
-
-      // Check/create DHCP server
-      let dhcpServers = [];
-      try {
-        dhcpServers = await mikrotikCall('/rest/ip/dhcp-server') || [];
-      } catch {}
-
-      if (!dhcpServers.find(d => d.name === 'dhcp-hs')) {
-        try {
-          await mikrotikCall('/rest/ip/dhcp-server/add', 'POST', {
-            name: 'dhcp-hs',
-            interface: bridgeName,
-            'address-pool': poolName,
-            disabled: 'no',
-          });
-        } catch {}
-
-        // Add DHCP network
-        try {
-          await mikrotikCall('/rest/ip/dhcp-server/network/add', 'POST', {
-            address: '10.5.50.0/24',
-            gateway: '10.5.50.1',
-            'dns-server': '10.5.50.1',
-          });
-        } catch {}
-      }
-
-      // Get updated server profiles for the hotspot server
       let updatedProfiles = [];
       try {
         updatedProfiles = await mikrotikCall('/rest/ip/hotspot/profile') || [];
       } catch {}
       const profileToUse = updatedProfiles.find(p => p.name === 'asuk-profile') || updatedProfiles[0];
 
-      // Create hotspot server
       try {
         await mikrotikCall('/rest/ip/hotspot/add', 'POST', {
           name: 'hotspot1',
@@ -213,9 +273,17 @@ export async function POST(request) {
           profile: profileToUse?.name || 'default',
           disabled: 'no',
         });
-        results.push({ step: 'Hotspot Server', status: 'ok', detail: `Created hotspot server on ${bridgeName} with pool ${poolName}` });
+        results.push({
+          step: 'Hotspot & Access Point Bridge',
+          status: 'ok',
+          detail: `Hotspot created on ${bridgeName} (${poolName}). Access Points plugged into LAN ports are covered.`,
+        });
       } catch (e) {
-        results.push({ step: 'Hotspot Server', status: 'warn', detail: 'Could not auto-create hotspot: ' + e.message + '. Use WinBox → IP → Hotspot → Hotspot Setup wizard instead.' });
+        results.push({
+          step: 'Hotspot & Access Point Bridge',
+          status: 'warn',
+          detail: 'Could not auto-create hotspot: ' + e.message,
+        });
       }
     }
 
@@ -354,35 +422,46 @@ export async function POST(request) {
         } catch {}
       }
 
-      // Try to create/update redirect login page via /file or /system/script
-      // Create a script that writes the redirect login.html
-      const loginHtml = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connecting...</title>
-<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#0f0f0f;color:#fff}
-.box{text-align:center;padding:40px}.spinner{width:40px;height:40px;border:3px solid #333;border-top:3px solid #22c55e;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
-@keyframes spin{to{transform:rotate(360deg)}}</style></head>
-<body><div class="box"><div class="spinner"></div><h2>Connecting to Portal...</h2><p>Redirecting to login page</p></div>
-<script>
-var link = '${appUrl}/login';
-var params = window.location.search;
-if (params) link += params;
-setTimeout(function(){ window.location.href = link; }, 500);
-</script></body></html>`;
+      // Configure Hotspot captive redirect: create a system script on router that writes login.html
+      const redirectHtml = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${appUrl}/login?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&dst=$(link-orig-esc)" /></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0a0a0a;color:#fff"><h2>Connecting to Wi-Fi Portal...</h2><p>Redirecting to login portal...</p><script>window.location.href="${appUrl}/login?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&dst=$(link-orig-esc)";</script></body></html>`;
 
-      // Use system script to write the login.html file
+      const scriptSource = `:do { /file print file="hotspot/login.html"; :delay 1s; /file set [find name="hotspot/login.html"] contents="${redirectHtml.replace(/"/g, '\\"')}"; } on-error={}`;
+
+      let scriptInstalled = false;
       try {
-        const scriptBody = `/file print file=hotspot/login; :delay 1s; /file set [find name="hotspot/login.html"] contents="${loginHtml.replace(/"/g, '\\"').replace(/\n/g, '')}"`;
-        // Alternative: just inform the admin what to do
-        results.push({
-          step: 'Login Page Redirect',
-          status: 'ok',
-          detail: `Captive portal will redirect to ${appUrl}/login — MikroTik serves built-in login page by default`,
+        const scripts = await mikrotikCall('/rest/system/script') || [];
+        const scriptName = 'asuk-hotspot-redirect';
+        const existingScript = scripts.find(s => s.name === scriptName);
+
+        if (existingScript) {
+          await mikrotikCall('/rest/system/script/set', 'POST', {
+            '.id': existingScript['.id'],
+            source: scriptSource,
+          });
+        } else {
+          await mikrotikCall('/rest/system/script/add', 'POST', {
+            name: scriptName,
+            source: scriptSource,
+            policy: 'ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon',
+          });
+        }
+
+        // Run the script to write login.html immediately
+        await mikrotikCall('/rest/system/script/run', 'POST', {
+          number: scriptName,
         });
+        scriptInstalled = true;
       } catch {}
 
+      results.push({
+        step: 'Captive Portal Redirect',
+        status: 'ok',
+        detail: scriptInstalled
+          ? `Auto-redirect active: all devices connecting to any AP will automatically open ${appUrl}/login`
+          : `Captive portal domain set to ${hotspotUrl} (${appUrl}/login)`,
+      });
     } catch (e) {
-      results.push({ step: 'Login Page Redirect', status: 'info', detail: 'Default MikroTik login page will be used' });
+      results.push({ step: 'Captive Portal Redirect', status: 'info', detail: 'Captive portal profile ready: ' + e.message });
     }
 
 

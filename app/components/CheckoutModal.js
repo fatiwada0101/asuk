@@ -6,6 +6,136 @@ import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import { supabase } from '../../lib/supabase';
 
+/**
+ * AutoConnectRedirect — after purchase, auto-login to MikroTik captive portal.
+ * Shows a 5-second countdown, then submits credentials to the hotspot login endpoint.
+ * User can also click immediately to connect, or cancel auto-connect.
+ */
+function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
+  const [countdown, setCountdown] = useState(4);
+  const [connecting, setConnecting] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
+
+  const getTargetUrl = () => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const customLogin = sp.get('link_login_only') || sp.get('link-login-only');
+      if (customLogin) return customLogin;
+    }
+    const cleanUrl = (hotspotUrl || 'asuktech.net').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    return `http://${cleanUrl}/login`;
+  };
+
+  const handleAutoConnect = () => {
+    if (connecting) return;
+    setConnecting(true);
+
+    const cleanCode = (code || '').trim();
+    const targetUrl = getTargetUrl();
+    const returnDst = typeof window !== 'undefined'
+      ? `${window.location.origin}/vouchers/status?code=${encodeURIComponent(cleanCode)}`
+      : '';
+
+    try {
+      // Build form for standard MikroTik Hotspot POST authentication
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}`;
+      form.style.display = 'none';
+
+      const fields = {
+        username: cleanCode,
+        password: cleanCode,
+        dst: returnDst,
+      };
+
+      for (const [key, val] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = val;
+        form.appendChild(input);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      // Fallback to direct navigation
+      window.location.href = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}&dst=${encodeURIComponent(returnDst)}`;
+    }
+  };
+
+  useEffect(() => {
+    if (cancelled) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleAutoConnect();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [code, hotspotUrl, cancelled]);
+
+  if (cancelled) {
+    return (
+      <div style={{ marginTop: 12, textAlign: 'center' }}>
+        <button
+          onClick={handleAutoConnect}
+          style={{
+            width: '100%', padding: '12px', fontWeight: 700, fontSize: '14px',
+            background: 'linear-gradient(135deg, #10B981, #059669)',
+            color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          🚀 Connect to Wi-Fi Now
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={handleAutoConnect}
+        disabled={connecting}
+        style={{
+          width: '100%', padding: '14px', fontWeight: 800, fontSize: '15px',
+          background: connecting ? '#4b5563' : 'linear-gradient(135deg, #10B981, #059669)',
+          color: '#fff', border: 'none', borderRadius: 12, cursor: connecting ? 'wait' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+          animation: !connecting ? 'pulse-green 2s ease-in-out infinite' : 'none',
+        }}
+      >
+        {connecting
+          ? '🔄 Authenticating with Wi-Fi...'
+          : `🚀 Auto-Connecting in ${countdown}s — Tap to Connect Now`
+        }
+      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+          Auto-logging into <strong>{wifiSsid || 'Wi-Fi'}</strong>
+        </span>
+        <button
+          onClick={() => setCancelled(true)}
+          style={{
+            background: 'none', border: 'none', color: '#9ca3af',
+            fontSize: '11px', cursor: 'pointer', textDecoration: 'underline',
+            padding: '2px 4px',
+          }}
+        >
+          Cancel Auto-Login
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const router = useRouter();
   const { user, wallet, refreshWallet } = useAuth();
@@ -551,7 +681,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
           </div>
         )}
 
-        {/* ── STEP 4: SUCCESS VOUCHER TICKET ── */}
+        {/* ── STEP 4: SUCCESS — AUTO-CONNECT ── */}
         {step === 'success' && voucherData && (
           <div className="checkout-ticket-wrap">
             <div className="ticket-top">
@@ -582,38 +712,19 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
                 {copied ? '✓ Copied to Clipboard!' : '📋 Copy Voucher Code'}
               </button>
 
-              {/* 1-Click Auto-Login Button */}
-              {routerStatus.hotspot_url && (
-                <a
-                  href={`http://${routerStatus.hotspot_url}/login?username=${encodeURIComponent(voucherData.code)}&password=${encodeURIComponent(voucherData.code)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-block"
-                  style={{
-                    marginTop: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    textDecoration: 'none',
-                    fontWeight: 700,
-                    background: '#10B981',
-                    color: '#FFFFFF',
-                    borderRadius: '12px',
-                    padding: '12px',
-                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
-                  }}
-                >
-                  <span>🚀</span> Connect to Wi-Fi Now (Auto-Login)
-                </a>
-              )}
+              {/* Auto-Connect: redirect to captive portal with credentials */}
+              <AutoConnectRedirect
+                code={voucherData.code}
+                hotspotUrl={routerStatus.hotspot_url}
+                wifiSsid={routerStatus.wifi_ssid}
+              />
 
               <div className="ticket-instructions">
-                <strong>How to Connect:</strong>
+                <strong>Manual Login:</strong>
                 <ol>
-                  <li>Connect device to Wi-Fi: <strong>{routerStatus.wifi_ssid || 'Asuk Tech Wi-Fi'}</strong></li>
-                  <li>Tap the green <strong>&ldquo;Connect to Wi-Fi Now&rdquo;</strong> button above to auto-login without typing credentials</li>
-                  <li>Or browse to <strong>http://{routerStatus.hotspot_url || 'asuktech.net'}</strong> and enter code <strong>{voucherData.code}</strong></li>
+                  <li>Connect to Wi-Fi: <strong>{routerStatus.wifi_ssid || 'Asuk Tech Wi-Fi'}</strong></li>
+                  <li>A login page will appear automatically</li>
+                  <li>Enter code <strong>{voucherData.code}</strong> as both username & password</li>
                 </ol>
               </div>
 

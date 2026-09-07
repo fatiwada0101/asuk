@@ -2441,6 +2441,11 @@ input, select, textarea {
   padding: 20px 24px 28px;
 }
 
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); }
+  50% { box-shadow: 0 4px 28px rgba(16, 185, 129, 0.6); }
+}
+
 .ticket-top {
   background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
   color: #FFFFFF;

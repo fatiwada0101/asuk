@@ -26,79 +26,124 @@ function CaptiveLoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [wifiSsid, setWifiSsid] = useState('');
+  const [hotspotUrl, setHotspotUrl] = useState('asuktech.net');
+  const [autoConnecting, setAutoConnecting] = useState(false);
 
   // MikroTik passes these query params on captive portal redirect
   const dst = searchParams.get('dst') || '';
   const mac = searchParams.get('mac') || '';
   const ip = searchParams.get('ip') || '';
-  const username = searchParams.get('username') || '';
+  const linkLoginOnly = searchParams.get('link-login-only') || searchParams.get('link_login_only') || searchParams.get('link-login') || '';
+  const username = searchParams.get('username') || searchParams.get('code') || '';
+  const password = searchParams.get('password') || '';
 
   useEffect(() => {
-    // Fetch WiFi SSID from settings
+    // Fetch WiFi SSID and hotspot URL from public settings
     fetch('/api/settings/public')
       .then(r => r.json())
       .then(data => {
         if (data?.mikrotik?.wifi_ssid) setWifiSsid(data.mikrotik.wifi_ssid);
+        if (data?.mikrotik?.hotspot_url) setHotspotUrl(data.mikrotik.hotspot_url);
       })
       .catch(() => {});
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!code.trim()) return;
+  // Determine target MikroTik login action URL
+  const getMikrotikLoginTarget = () => {
+    if (linkLoginOnly) return linkLoginOnly;
+    const cleanHotspot = (hotspotUrl || 'asuktech.net').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    return `http://${cleanHotspot}/login`;
+  };
+
+  // Submit credentials directly to MikroTik Hotspot
+  const submitToMikrotik = (voucherCode) => {
+    const cleanCode = (voucherCode || '').trim();
+    const targetUrl = getMikrotikLoginTarget();
+    const returnDst = dst || (typeof window !== 'undefined' ? `${window.location.origin}/status?code=${encodeURIComponent(cleanCode)}` : '');
+
+    // Form POST is standard for MikroTik Hotspot captive portal authentication
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}`;
+    form.style.display = 'none';
+
+    const fields = {
+      username: cleanCode,
+      password: cleanCode,
+      dst: returnDst,
+    };
+
+    for (const [key, value] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  // Auto-fill and auto-submit if credentials are in URL (from checkout auto-redirect)
+  useEffect(() => {
+    if (username) {
+      setCode(username);
+      setAutoConnecting(true);
+      const timer = setTimeout(() => {
+        performLogin(username);
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [username]);
+
+  const performLogin = async (voucherCode) => {
+    const clean = (voucherCode || '').trim();
+    if (!clean) return;
 
     setLoading(true);
     setError('');
 
     try {
-      // Check voucher status
-      const statusRes = await fetch(`/api/vouchers/status?code=${encodeURIComponent(code.trim())}`);
+      // Validate voucher status in database
+      const statusRes = await fetch(`/api/vouchers/status?code=${encodeURIComponent(clean)}`);
       const statusData = await statusRes.json();
 
       if (!statusRes.ok || !statusData.valid) {
         setError(statusData.error || 'Invalid or expired voucher code');
         setLoading(false);
+        setAutoConnecting(false);
         return;
       }
 
-      // Voucher is valid — MikroTik hotspot user should already exist
-      // Redirect to MikroTik login endpoint to authenticate
       setSuccess(true);
 
-      // Build the MikroTik login URL
-      // The hotspot login is at http://<hotspot-dns-name>/login
-      // We POST username (code) and password (code) to authenticate
-      const loginForm = document.createElement('form');
-      loginForm.method = 'POST';
-      loginForm.action = window.location.origin + '/login';
-
-      // MikroTik expects these fields
-      const fields = {
-        username: code.trim(),
-        password: code.trim(),
-        dst: dst || window.location.origin,
-      };
-
-      for (const [key, value] of Object.entries(fields)) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        loginForm.appendChild(input);
-      }
-
-      document.body.appendChild(loginForm);
-
-      // Small delay to show success message, then submit
+      // Submit credentials to MikroTik Hotspot engine after brief visual feedback
       setTimeout(() => {
-        loginForm.submit();
-      }, 1500);
-
-    } catch (err) {
-      setError('Network error — please try again');
+        submitToMikrotik(clean);
+      }, 1000);
+    } catch {
+      setError('Network error — please check router connection and try again');
       setLoading(false);
+      setAutoConnecting(false);
     }
   };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    performLogin(code);
+  };
+
+  // Construct URL for buying package, preserving router captive params
+  const buyPackageUrl = (() => {
+    const p = new URLSearchParams();
+    if (mac) p.set('mac', mac);
+    if (ip) p.set('ip', ip);
+    if (linkLoginOnly) p.set('link_login_only', linkLoginOnly);
+    if (dst) p.set('dst', dst);
+    const qs = p.toString();
+    return qs ? `/packages?${qs}` : '/packages';
+  })();
 
   return (
     <div style={{
@@ -112,61 +157,91 @@ function CaptiveLoginPage() {
     }}>
       <div style={{
         width: '100%',
-        maxWidth: 400,
+        maxWidth: 420,
         background: 'rgba(255,255,255,0.05)',
         backdropFilter: 'blur(20px)',
         borderRadius: 24,
         border: '1px solid rgba(255,255,255,0.1)',
-        padding: '40px 32px',
+        padding: '36px 28px',
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
       }}>
         {/* Logo & Title */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          {logoUrl && (
-            <img src={logoUrl} alt="" style={{ width: 56, height: 56, borderRadius: 16, marginBottom: 16 }} />
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" style={{ width: 56, height: 56, borderRadius: 16, marginBottom: 14 }} />
+          ) : (
+            <div style={{
+              width: 60, height: 60, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 14px', fontSize: 26,
+              boxShadow: '0 8px 24px rgba(34,197,94,0.35)',
+            }}>
+              {String.fromCodePoint(0x1F4F6)}
+            </div>
           )}
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', fontSize: 28,
-          }}>
-            {String.fromCodePoint(0x1F4F6)}
-          </div>
           <h1 style={{
             color: '#fff', fontSize: '22px', fontWeight: 800, margin: '0 0 6px',
             letterSpacing: '-0.3px',
           }}>
-            {appName || 'Wi-Fi Login'}
+            {appName || 'Wi-Fi Login Portal'}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', margin: 0 }}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '13px', margin: 0 }}>
             {wifiSsid ? `Connected to ${wifiSsid}` : 'Enter your voucher code to connect'}
           </p>
         </div>
 
+        {/* Auto-Connecting / Success State */}
         {success ? (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <div style={{
-              width: 60, height: 60, borderRadius: '50%',
+              width: 64, height: 64, borderRadius: '50%',
               background: 'rgba(34,197,94,0.15)',
+              border: '2px solid rgba(34,197,94,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 16px', fontSize: 28,
             }}>
               {String.fromCodePoint(0x2705)}
             </div>
-            <h2 style={{ color: '#22c55e', fontSize: '18px', fontWeight: 700, margin: '0 0 8px' }}>
-              Connected!
+            <h2 style={{ color: '#22c55e', fontSize: '19px', fontWeight: 800, margin: '0 0 6px' }}>
+              Connected & Authenticated!
             </h2>
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
-              Redirecting you to the internet...
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', margin: '0 0 16px' }}>
+              Submitting session to router... Granting internet access.
             </p>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '6px 14px', borderRadius: 999,
+              background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+              fontSize: '12px', fontWeight: 600,
+            }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+              Active Hotspot Session
+            </div>
+          </div>
+        ) : autoConnecting ? (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.1)',
+              borderTop: '3px solid #22c55e',
+              margin: '0 auto 16px',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <h2 style={{ color: '#fff', fontSize: '18px', fontWeight: 700, margin: '0 0 6px' }}>
+              Auto-Authenticating...
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', margin: '0 0 12px' }}>
+              Logging in with voucher code <strong style={{ color: '#22c55e', fontFamily: 'monospace' }}>{code}</strong>
+            </p>
+            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
           </div>
         ) : (
           <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 18 }}>
               <label style={{
-                display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: '12px',
-                fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px',
+                display: 'block', color: 'rgba(255,255,255,0.65)', fontSize: '12px',
+                fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px',
               }}>
                 Voucher Code
               </label>
@@ -174,15 +249,16 @@ function CaptiveLoginPage() {
                 type="text"
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder="Enter your code"
+                placeholder="ASUK-XXXX"
                 autoFocus
                 autoComplete="off"
                 style={{
-                  width: '100%', padding: '14px 18px', fontSize: '18px', fontWeight: 700,
+                  width: '100%', padding: '14px 18px', fontSize: '18px', fontWeight: 800,
                   background: 'rgba(255,255,255,0.08)', border: '1.5px solid rgba(255,255,255,0.15)',
                   borderRadius: 14, color: '#fff', outline: 'none', textAlign: 'center',
-                  letterSpacing: '3px', fontFamily: 'monospace',
+                  letterSpacing: '2px', fontFamily: 'monospace',
                   transition: 'border-color 0.2s',
+                  boxSizing: 'border-box',
                 }}
                 onFocus={e => e.target.style.borderColor = '#22c55e'}
                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.15)'}
@@ -191,11 +267,12 @@ function CaptiveLoginPage() {
 
             {error && (
               <div style={{
-                padding: '10px 14px', background: 'rgba(239,68,68,0.12)',
-                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10,
+                padding: '11px 14px', background: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.35)', borderRadius: 12,
                 color: '#f87171', fontSize: '12.5px', marginBottom: 16, textAlign: 'center',
+                lineHeight: 1.4,
               }}>
-                {error}
+                ⚠️ {error}
               </div>
             )}
 
@@ -203,48 +280,57 @@ function CaptiveLoginPage() {
               type="submit"
               disabled={loading || !code.trim()}
               style={{
-                width: '100%', padding: '14px', fontSize: '15px', fontWeight: 800,
+                width: '100%', padding: '15px', fontSize: '15px', fontWeight: 800,
                 background: loading ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)',
                 color: '#fff', border: 'none', borderRadius: 14, cursor: loading ? 'wait' : 'pointer',
                 letterSpacing: '0.3px',
-                boxShadow: loading ? 'none' : '0 4px 20px rgba(34,197,94,0.3)',
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(34,197,94,0.35)',
                 transition: 'all 0.2s',
               }}
             >
-              {loading ? 'Connecting...' : 'Connect to Internet'}
+              {loading ? 'Connecting to Router...' : '⚡ Connect to Internet'}
             </button>
           </form>
         )}
 
         {/* Buy Voucher Link */}
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '12px', margin: '0 0 8px' }}>
-            {"Don't have a voucher?"}
+        <div style={{
+          textAlign: 'center', marginTop: 22, paddingTop: 18,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', margin: '0 0 8px' }}>
+            {"Don't have an active voucher?"}
           </p>
           <a
-            href="/packages"
+            href={buyPackageUrl}
             style={{
-              color: '#7257FF', fontSize: '13px', fontWeight: 700,
-              textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              color: '#7257FF', fontSize: '13.5px', fontWeight: 800,
+              textDecoration: 'none', padding: '8px 16px',
+              background: 'rgba(114,87,255,0.12)', borderRadius: 10,
+              border: '1px solid rgba(114,87,255,0.25)',
+              transition: 'background 0.2s',
             }}
           >
-            Buy a Data Plan
+            🛒 Buy a Data Plan Online →
           </a>
         </div>
 
-        {/* Device Info */}
-        {(mac || ip) && (
-          <div style={{
-            marginTop: 20, padding: '10px 14px',
-            background: 'rgba(255,255,255,0.03)', borderRadius: 10,
-            fontSize: '11px', color: 'rgba(255,255,255,0.25)', textAlign: 'center',
-          }}>
-            {mac && <span>MAC: {mac}</span>}
-            {mac && ip && <span> &bull; </span>}
-            {ip && <span>IP: {ip}</span>}
-          </div>
-        )}
+        {/* Device & Network Details */}
+        <div style={{
+          marginTop: 18, padding: '10px 14px',
+          background: 'rgba(255,255,255,0.03)', borderRadius: 10,
+          fontSize: '11px', color: 'rgba(255,255,255,0.3)', textAlign: 'center',
+          lineHeight: 1.5,
+        }}>
+          {mac && <span>MAC: <strong style={{ color: 'rgba(255,255,255,0.5)' }}>{mac}</strong> </span>}
+          {mac && ip && <span>• </span>}
+          {ip && <span>IP: <strong style={{ color: 'rgba(255,255,255,0.5)' }}>{ip}</strong> </span>}
+          <div>Portal: <strong style={{ color: 'rgba(255,255,255,0.5)' }}>{hotspotUrl}</strong></div>
+        </div>
       </div>
     </div>
   );
 }
+
+
