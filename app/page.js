@@ -404,7 +404,12 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="balance-exp-col">
+            <div
+              className="balance-exp-col"
+              onClick={() => router.push(activeVoucher?.code ? `/vouchers/status?code=${encodeURIComponent(activeVoucher.code)}` : '/vouchers/status')}
+              style={{ cursor: 'pointer' }}
+              title="Click to view live session timer & data used"
+            >
               <span className={`exp-tag ${isPassActive ? 'active' : ''}`}>
                 {isPassActive ? '● Pass Expiry' : 'Voucher Expiry'}
               </span>

@@ -166,14 +166,8 @@ export async function POST(request) {
       const downloadSpeed = body.download_speed || defaultDownloadSpeed;
       const rateLimit = `${uploadSpeed}/${downloadSpeed}`;
 
-      // 1. Pre-check router connectivity
-      const online = await isMikroTikOnline(3000);
-      if (!online) {
-        return NextResponse.json({
-          error: 'MikroTik router is offline or unreachable. Cannot auto-generate vouchers on the router. Please ensure the router is connected, or paste existing codes manually.',
-          router_offline: true,
-        }, { status: 503 });
-      }
+      // 1. Check router connectivity
+      const online = await isMikroTikOnline(2500);
 
       const uptimeMap = {
         '1h': '1h', '3h': '3h', '24h': '1d',
@@ -191,37 +185,36 @@ export async function POST(request) {
           code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
 
-        try {
-          await createHotspotUser({
-            code,
-            password: code,
-            profile: profile_name,
-            limitUptime,
-            comment: `Fallback Pool Reserve: ${profile_name}${plan_id ? ` [${plan_id}]` : ''}`,
-            shared_users: devices,
-            rate_limit: rateLimit,
-          });
-
-          createdVouchers.push({
-            voucher_code: code,
-            plan_id: plan_id || null,
-            profile_name,
-            duration,
-            status: 'available',
-            is_used: false,
-          });
-        } catch (err) {
-          console.error(`Error provisioning router voucher ${code}:`, err.message);
-          errors.push(err.message);
-          if (err.message.includes('timeout') || err.message.includes('Cannot connect')) {
-            break;
+        if (online) {
+          try {
+            await createHotspotUser({
+              code,
+              password: code,
+              profile: profile_name,
+              limitUptime,
+              comment: `Fallback Pool Reserve: ${profile_name}${plan_id ? ` [${plan_id}]` : ''}`,
+              shared_users: devices,
+              rate_limit: rateLimit,
+            });
+          } catch (err) {
+            console.error(`Error provisioning router voucher ${code}:`, err.message);
+            errors.push(err.message);
           }
         }
+
+        createdVouchers.push({
+          voucher_code: code,
+          plan_id: plan_id || null,
+          profile_name,
+          duration,
+          status: 'available',
+          is_used: false,
+        });
       }
 
       if (createdVouchers.length === 0) {
         return NextResponse.json({
-          error: `Failed to create vouchers on router: ${errors[0] || 'Unknown router error'}`,
+          error: `Failed to generate vouchers: ${errors[0] || 'Unknown error'}`,
         }, { status: 502 });
       }
 

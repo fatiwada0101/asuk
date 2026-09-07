@@ -18,10 +18,10 @@ import {
 const navLinks = [
   { id: 'home', label: 'Home Dashboard', icon: HomeIcon, path: '/' },
   { id: 'packages', label: 'Wi-Fi Passes', icon: WifiIcon, path: '/packages' },
+  { id: 'status', label: 'Active Pass Timer', icon: WifiIcon, path: '/vouchers/status' },
   { id: 'wallet', label: 'Wallet & History', icon: WalletIcon, path: '/wallet', auth: true },
   { id: 'analytics', label: 'Usage Analytics', icon: PieChartIcon, path: '/analytics' },
   { id: 'auth', label: 'My Profile', icon: UserIcon, path: '/auth' },
-  { id: 'super-admin', label: 'Super Admin Portal', icon: ShieldIcon, path: '/super-admin' },
 ];
 
 export default function SideDrawer({ isOpen, onClose }) {

@@ -98,15 +98,8 @@ export default function AuthPage() {
 
           <h1 className="screen-title">My Account</h1>
 
-          <button
-            className="circle-icon-btn"
-            onClick={() => router.push('/super-admin')}
-            aria-label="Super Admin"
-            title="Super Admin Portal"
-          >
-            <ShieldIcon size={20} color="#121217" />
-          </button>
-        </div>
+        <div style={{ width: '40px' }} />
+      </div>
 
         {/* Profile Card */}
         <div className="profile-hero-card">
@@ -259,14 +252,7 @@ export default function AuthPage() {
 
         <h1 className="screen-title">{isLogin ? 'Sign In' : 'Create Account'}</h1>
 
-        <button
-          className="circle-icon-btn"
-          onClick={() => router.push('/super-admin')}
-          aria-label="Super Admin Portal"
-          title="Super Admin Portal"
-        >
-          <ShieldIcon size={20} color="#121217" />
-        </button>
+        <div style={{ width: '40px' }} />
       </div>
 
       {/* Capsule Segmented Toggle */}

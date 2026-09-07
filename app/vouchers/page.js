@@ -97,13 +97,7 @@ export default function VouchersPage() {
 
         <h1 className="screen-title">My Wi-Fi Passes</h1>
 
-        <button
-          className="circle-icon-btn"
-          onClick={() => router.push('/super-admin')}
-          aria-label="Admin Portal"
-        >
-          <ShieldIcon size={20} color="#121217" />
-        </button>
+        <div style={{ width: '40px' }} />
       </div>
 
       {/* Sub-header info */}
@@ -211,23 +205,46 @@ export default function VouchersPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => copyCode(v.voucher_code)}
-                  style={{
-                    padding: '8px 14px',
-                    background: copiedCode === v.voucher_code ? '#10B981' : '#141417',
-                    color: '#FFFFFF',
-                    borderRadius: '999px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {copiedCode === v.voucher_code ? '✓ Copied' : 'Copy PIN'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/vouchers/status?code=${encodeURIComponent(v.voucher_code)}`)}
+                    style={{
+                      padding: '8px 12px',
+                      background: '#FFFFFF',
+                      color: '#7257FF',
+                      borderRadius: '999px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1.5px solid rgba(114, 87, 255, 0.25)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                    title="Track live session countdown and data used"
+                  >
+                    ⏱️ Timer
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => copyCode(v.voucher_code)}
+                    style={{
+                      padding: '8px 14px',
+                      background: copiedCode === v.voucher_code ? '#10B981' : '#141417',
+                      color: '#FFFFFF',
+                      borderRadius: '999px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {copiedCode === v.voucher_code ? '✓ Copied' : 'Copy PIN'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}

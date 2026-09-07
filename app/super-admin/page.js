@@ -606,6 +606,46 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     setGeneratingPlan(null);
   };
 
+  // Batch replenish all low-stock plans (< 5 available) with 10 vouchers each
+  const handleReplenishAllLowStock = async () => {
+    const lowPlans = (data.summary || []).filter(s => s.available < 5);
+    if (lowPlans.length === 0) {
+      showToast('All plan pools are already well stocked!');
+      return;
+    }
+    setGenerating(true);
+    let totalAdded = 0;
+    for (const p of lowPlans) {
+      setGeneratingPlan(p.profile_name);
+      try {
+        const res = await fetch('/api/super-admin/fallback-vouchers', {
+          method: 'POST',
+          headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'auto_generate',
+            plan_id: p.plan_id || p.profile_name,
+            profile_name: p.profile_name,
+            duration: p.duration || '24h',
+            quantity: 10,
+            devices: customDevices,
+            upload_speed: customUpload,
+            download_speed: customDownload,
+          }),
+        });
+        if (res.ok) {
+          const j = await res.json();
+          totalAdded += (j.added || 0);
+        }
+      } catch (e) {
+        console.error('Batch replenish error for', p.profile_name, e);
+      }
+    }
+    setGenerating(false);
+    setGeneratingPlan(null);
+    showToast(`⚡ Batch replenished ${totalAdded} vouchers across ${lowPlans.length} low-stock plans!`);
+    fetchData();
+  };
+
   // Manual Bulk Paste
   const handleManualAddVouchers = async (e) => {
     e?.preventDefault();
@@ -822,9 +862,31 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
               <h3 className="sa-card-title">Reserve Pool by Plan</h3>
               <p className="sa-card-sub">Stock level &amp; 1-click replenish</p>
             </div>
-            <button className="sa-btn-outline" onClick={fetchData} disabled={loading} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
-              {loading ? 'Syncing...' : 'Refresh'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {lowStockPlans.length > 0 && (
+                <button
+                  className="sa-btn-primary"
+                  onClick={handleReplenishAllLowStock}
+                  disabled={generating}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    background: '#F59E0B',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    color: '#000'
+                  }}
+                  title="Generate 10 vouchers for each plan with low stock (< 5)"
+                >
+                  ⚡ Auto-Stock Low ({lowStockPlans.length})
+                </button>
+              )}
+              <button className="sa-btn-outline" onClick={fetchData} disabled={loading} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                {loading ? 'Syncing...' : 'Refresh'}
+              </button>
+            </div>
           </div>
 
           {data.summary.length === 0 ? (
@@ -880,29 +942,48 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <button
                         className="sa-btn-primary"
                         disabled={generating}
                         onClick={() => handleAutoGenerate(item.profile_name, 10)}
                         style={{
-                          padding: '5px 12px',
+                          padding: '5px 10px',
                           fontSize: '0.78rem',
                           background: '#7257FF',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 4
                         }}
-                        title="Auto-generate 10 vouchers on MikroTik and add to this pool"
+                        title="Quick-generate 10 vouchers for this pool"
                       >
-                        {isThisGenerating ? '⏳ Generating...' : '⚡ +10 Vouchers'}
+                        {isThisGenerating ? '⏳...' : '+10'}
+                      </button>
+
+                      <button
+                        className="sa-btn-primary"
+                        disabled={generating}
+                        onClick={() => handleAutoGenerate(item.profile_name, 25)}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: '0.78rem',
+                          background: 'rgba(114, 87, 255, 0.25)',
+                          border: '1px solid rgba(114, 87, 255, 0.5)',
+                          color: '#C4B5FD',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                        title="Quick-generate 25 vouchers for this pool"
+                      >
+                        +25
                       </button>
 
                       {item.available > 0 && (
                         <button
                           className="sa-btn-outline"
                           onClick={() => handleClearUnused(item.profile_name)}
-                          style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                           title="Clear all unused vouchers for this plan"
                         >
                           Clear

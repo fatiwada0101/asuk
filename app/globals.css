@@ -246,16 +246,28 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
   margin-bottom: 22px;
 }
 
 .card-front-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-weight: 800;
-  font-size: 15px;
+  font-size: 14.5px;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.card-front-logo span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 175px;
 }
 
 .card-front-number {
@@ -270,7 +282,7 @@ input, select, textarea {
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 12px;
-  padding: 5px 12px;
+  padding: 5px 11px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -278,6 +290,8 @@ input, select, textarea {
   transition: all 0.15s ease;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .card-hotspot-pin-chip:hover {
@@ -292,6 +306,7 @@ input, select, textarea {
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.7);
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .card-hotspot-pin-chip .pin-code {
@@ -300,12 +315,59 @@ input, select, textarea {
   font-weight: 800;
   color: #FFFFFF;
   letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .card-hotspot-pin-chip .pin-action-icon {
   font-size: 11px;
   margin-left: 2px;
   opacity: 0.9;
+}
+
+@media (max-width: 380px) {
+  .card-front-violet {
+    padding: 18px 16px 16px;
+    border-radius: 22px;
+    margin-bottom: 18px;
+  }
+  .card-front-top {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .card-front-logo {
+    font-size: 12.5px;
+    gap: 5px;
+  }
+  .card-front-logo span {
+    max-width: 125px;
+  }
+  .card-hotspot-pin-chip {
+    padding: 4px 8px;
+    gap: 4px;
+    border-radius: 9px;
+  }
+  .card-hotspot-pin-chip .pin-prefix {
+    font-size: 9px;
+  }
+  .card-hotspot-pin-chip .pin-code {
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .card-front-balance-row {
+    margin-bottom: 16px;
+  }
+  .balance-main-amount {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 330px) {
+  .card-front-logo span {
+    max-width: 95px;
+  }
+  .card-hotspot-pin-chip .pin-code {
+    font-size: 10px;
+  }
 }
 
 .card-front-balance-row {

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7257FF"/>
+      <stop offset="100%" stop-color="#141417"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#grad)"/>
+  <!-- Wi-Fi Waves -->
+  <path d="M120 180 C200 110, 312 110, 392 180" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+  <path d="M165 240 C220 190, 292 190, 347 240" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+  <path d="M210 300 C238 275, 274 275, 302 300" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/>
+  <circle cx="256" cy="365" r="28" fill="#10B981"/>
+</svg>

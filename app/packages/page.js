@@ -121,14 +121,7 @@ export default function PackagesPage() {
 
         <h1 className="screen-title">Wi-Fi Passes</h1>
 
-        <button
-          className="circle-icon-btn"
-          onClick={() => router.push('/super-admin')}
-          aria-label="Super Admin Portal"
-          title="Super Admin Portal"
-        >
-          <ShieldIcon size={20} color="#121217" />
-        </button>
+        <div style={{ width: '40px' }} />
       </div>
 
       {/* Featured Flagship Pass Hero */}
