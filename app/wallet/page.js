@@ -208,20 +208,6 @@ export default function WalletPage() {
 
       await refreshWallet();
       showToast(`✅ ${formatPrice(amount)} added to your wallet!`);
-
-      // Create notification
-      try {
-        await fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: user.id,
-            title: 'Wallet Top-Up Successful',
-            message: `${formatPrice(amount)} has been credited to your wallet.`,
-            type: 'wallet_credit',
-          }),
-        });
-      } catch (e) {}
     } catch (err) {
       showToast('Error: ' + err.message);
     } finally {
