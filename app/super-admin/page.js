@@ -3250,7 +3250,7 @@ export default function SuperAdminPage() {
                     showToast('Settings saved! Testing connection...');
 
                     // Step 3: Test connection
-                    const testRes = await fetch('/api/mikrotik/test', { headers: adminHeaders() });
+                    const testRes = await fetch('/api/mikrotik/test-connection', { headers: adminHeaders() });
                     const testData = await testRes.json();
                     setTestResult(testData);
 

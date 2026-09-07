@@ -3,10 +3,10 @@ const nextConfig = {
   // ── Rewrites (URL aliases — no visible URL change) ──
   async rewrites() {
     return [
-      { source: '/login', destination: '/auth' },
       { source: '/signup', destination: '/auth' },
       { source: '/plans', destination: '/packages' },
       { source: '/passes', destination: '/vouchers' },
+      { source: '/api/mikrotik/test', destination: '/api/mikrotik/test-connection' },
     ];
   },
 
