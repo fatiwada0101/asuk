@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 
 import { POST as topupHandler } from '@/app/api/wallet/topup/route.js';
 import { GET as getFinance } from '@/app/api/super-admin/finance/route.js';
+import { POST as webhookHandler, GET as webhookGet } from '@/app/api/webhook/flutterwave/route.js';
+import { supabaseAdmin } from '@/lib/supabase-server.js';
+
+test.after(() => {
+  try {
+    supabaseAdmin.realtime?.disconnect?.();
+  } catch (e) {}
+});
 
 test('POST /api/wallet/topup - rejects unauthenticated top-up request with 401', async () => {
   const req = new Request('http://localhost:3000/api/wallet/topup', {
@@ -46,6 +54,127 @@ test('GET /api/super-admin/finance - rejects unauthenticated access with 401', a
   const req = new Request('http://localhost:3000/api/super-admin/finance?start_date=2026-01-01&end_date=2026-12-31');
   const res = await getFinance(req);
   assert.equal(res.status, 401, 'Finance endpoint must require admin credentials');
+});
+
+test('GET /api/webhook/flutterwave - returns active status and GET/POST methods', async () => {
+  const res = await webhookGet();
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.status, 'active');
+  assert.equal(data.service, 'Flutterwave Webhook');
+});
+
+test('POST /api/webhook/flutterwave - rejects invalid hash when webhook secret is configured', async () => {
+  const req = new Request('http://localhost:3000/api/webhook/flutterwave', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'verif-hash': 'invalid_secret_hash_value',
+    },
+    body: JSON.stringify({
+      status: 'successful',
+      data: {
+        tx_ref: 'FLW_TOPUP_99999',
+        amount: 500,
+      },
+    }),
+  });
+
+  const res = await webhookHandler(req);
+  assert.equal(res.status, 401, 'Must reject with 401 when verif-hash does not match secret');
+});
+
+test('POST /api/webhook/flutterwave - ignores non-successful events', async () => {
+  const req = new Request('http://localhost:3000/api/webhook/flutterwave', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'verif-hash': 'dataplug_webhook_secret_hash',
+    },
+    body: JSON.stringify({
+      data: {
+        status: 'failed',
+        tx_ref: 'FLW_TOPUP_FAILED_1',
+        amount: 500,
+      },
+    }),
+  });
+
+  const res = await webhookHandler(req);
+  const data = await res.json();
+  assert.equal(data.status, 'ignored');
+  assert.equal(data.reason, 'not successful');
+});
+
+test('POST /api/webhook/flutterwave - acknowledges non-wallet events (e.g. voucher card payments)', async () => {
+  const req = new Request('http://localhost:3000/api/webhook/flutterwave', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'verif-hash': 'dataplug_webhook_secret_hash',
+    },
+    body: JSON.stringify({
+      data: {
+        status: 'successful',
+        tx_ref: 'FLW_1725700000_ABCDE',
+        amount: 250,
+        currency: 'NGN',
+      },
+    }),
+  });
+
+  const res = await webhookHandler(req);
+  const data = await res.json();
+  assert.equal(data.status, 'acknowledged');
+  assert.match(data.message, /Non-wallet topup/i);
+});
+
+test('POST /api/webhook/flutterwave - processes topup and enforces strict idempotency', async () => {
+  const testRef = `FLW_TOPUP_TEST_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const testUserId = '5c9313db-58a4-4ad9-b14b-2d70cce5a908'; // Existing user from profiles
+
+  const payload = {
+    data: {
+      status: 'successful',
+      tx_ref: testRef,
+      amount: 200,
+      currency: 'NGN',
+      customer: {
+        email: 'aleeyuwada01@gmail.com',
+      },
+      meta: {
+        user_id: testUserId,
+        type: 'wallet_topup',
+      },
+    },
+  };
+
+  const createReq = () => new Request('http://localhost:3000/api/webhook/flutterwave', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'verif-hash': 'dataplug_webhook_secret_hash',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // 1st delivery — should credit wallet
+  const res1 = await webhookHandler(createReq());
+  assert.equal(res1.status, 200);
+  const data1 = await res1.json();
+  assert.equal(data1.status, 'success');
+  assert.equal(data1.action, 'wallet_credit');
+  assert.equal(data1.amount, 200);
+  assert.equal(data1.user_id, testUserId);
+  const balanceAfterFirst = data1.balance;
+
+  // 2nd delivery (Flutterwave retry) — must be idempotent and NOT credit twice
+  const res2 = await webhookHandler(createReq());
+  assert.equal(res2.status, 200);
+  const data2 = await res2.json();
+  assert.equal(data2.status, 'success');
+  assert.equal(data2.action, 'already_processed');
+  assert.equal(data2.balance, balanceAfterFirst, 'Balance must remain identical on duplicate webhook retry');
 });
 
 test('Finance logic - correctly aggregates both guest and user transactions', () => {

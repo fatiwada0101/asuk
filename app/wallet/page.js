@@ -146,6 +146,55 @@ export default function WalletPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Realtime transaction updates (reflects webhook deposits instantly)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const txChannel = supabase
+      .channel(`realtime-tx-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchTransactions();
+          refreshWallet();
+        }
+      )
+      .on('broadcast', { event: 'wallet_update' }, (msg) => {
+        fetchTransactions();
+        refreshWallet();
+        if (msg?.payload?.amount) {
+          showToast(`₦${Number(msg.payload.amount).toLocaleString()} deposit credited to your balance!`);
+        }
+      })
+      .subscribe();
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchTransactions();
+        refreshWallet();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibility);
+      window.addEventListener('focus', handleVisibility);
+    }
+
+    return () => {
+      supabase.removeChannel(txChannel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('focus', handleVisibility);
+      }
+    };
+  }, [user?.id, fetchTransactions, refreshWallet]);
+
   const depositNum = Math.max(0, parseFloat(amountVal) || 0);
   const projectedBalance = walletBalance + depositNum;
 
@@ -181,6 +230,10 @@ export default function WalletPage() {
         email: user?.email || 'customer@asuktech.com',
         phone_number: user?.user_metadata?.phone || '08000000000',
         name: displayName,
+      },
+      meta: {
+        user_id: user.id,
+        type: 'wallet_topup',
       },
       customizations: {
         title: `${appName} Wallet Deposit`,

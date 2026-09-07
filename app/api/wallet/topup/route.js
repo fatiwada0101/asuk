@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server.js';
-import { supabaseAdmin } from '@/lib/supabase-server.js';
+import { supabaseAdmin, broadcastWalletUpdate } from '@/lib/supabase-server.js';
 import { validateUserAuth, userUnauthorizedResponse } from '@/lib/user-auth.js';
 
 export async function POST(request) {
@@ -107,50 +107,71 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unable to verify payment with gateway: ' + flwErr.message }, { status: 502 });
     }
 
-    // ATOMIC wallet credit — prevents race condition
-    const { data: newBalance, error: rpcErr } = await supabaseAdmin
-      .rpc('adjust_wallet_balance', {
-        p_user_id: effectiveUserId,
-        p_amount: numericAmount,
-        p_operation: 'add',
-      });
-
-    if (rpcErr) {
-      console.error('RPC wallet credit error:', rpcErr);
-      return NextResponse.json({ error: 'Failed to update wallet balance' }, { status: 500 });
-    }
-
-    // Record the top-up transaction (with flw_ref for idempotency)
-    const { error: txErr } = await supabaseAdmin
+    // 4. ATOMIC idempotency: Insert transaction first
+    const { data: insertedTx, error: txInsertErr } = await supabaseAdmin
       .from('transactions')
-      .insert({
+      .upsert({
         user_id: effectiveUserId,
         type: 'wallet_topup',
         amount: numericAmount,
         status: 'successful',
         flw_ref: ref,
-      });
+      }, { onConflict: 'flw_ref', ignoreDuplicates: true })
+      .select('id, user_id, amount, flw_ref, status, created_at')
+      .maybeSingle();
 
-    if (txErr) {
-      // If insert failed due to unique constraint (race with webhook), that's OK
-      // The wallet was already credited, which is fine
-      console.error('Error recording transaction:', txErr);
+    if (txInsertErr) {
+      console.error('Error inserting transaction:', txInsertErr);
+      return NextResponse.json({ error: 'Failed to record transaction' }, { status: 500 });
     }
 
-    // Create notification
-    try {
-      await supabaseAdmin.from('notifications').insert({
-        user_id: effectiveUserId,
-        title: 'Wallet Topped Up',
-        message: `₦${numericAmount.toLocaleString()} has been added to your wallet.`,
-        type: 'wallet_credit',
+    let finalBalance = 0;
+
+    // Only credit wallet if newly inserted (not already credited by concurrent webhook)
+    if (insertedTx?.id) {
+      const { data: newBalance, error: rpcErr } = await supabaseAdmin
+        .rpc('adjust_wallet_balance', {
+          p_user_id: effectiveUserId,
+          p_amount: numericAmount,
+          p_operation: 'add',
+        });
+
+      if (rpcErr) {
+        console.error('RPC wallet credit error:', rpcErr);
+        return NextResponse.json({ error: 'Failed to update wallet balance' }, { status: 500 });
+      }
+
+      finalBalance = Number(newBalance);
+
+      // Create notification
+      try {
+        await supabaseAdmin.from('notifications').insert({
+          user_id: effectiveUserId,
+          title: 'Wallet Topped Up',
+          message: `₦${numericAmount.toLocaleString()} has been added to your wallet.`,
+          type: 'wallet_credit',
+        });
+      } catch (e) {}
+
+      // Realtime Broadcast
+      await broadcastWalletUpdate(effectiveUserId, finalBalance, {
+        amount: numericAmount,
+        flw_ref: ref,
+        transaction: insertedTx,
       });
-    } catch (e) {}
+    } else {
+      const { data: wData } = await supabaseAdmin
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', effectiveUserId)
+        .maybeSingle();
+      finalBalance = Number(wData?.balance || 0);
+    }
 
     return NextResponse.json({
       success: true,
       amount: numericAmount,
-      balance: Number(newBalance),
+      balance: finalBalance,
       reference: ref,
       message: `₦${numericAmount.toLocaleString()} added to wallet`,
     });

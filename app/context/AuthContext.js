@@ -66,6 +66,60 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Real-time wallet balance subscription (updates UI instantaneously on webhook/deposit)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const walletChannel = supabase
+      .channel(`realtime-wallet-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            setWallet(payload.new);
+          }
+        }
+      )
+      .on('broadcast', { event: 'wallet_update' }, (msg) => {
+        if (msg?.payload && typeof msg.payload.balance !== 'undefined') {
+          setWallet((prev) => ({
+            ...(prev || {}),
+            user_id: user.id,
+            balance: msg.payload.balance,
+            updated_at: msg.payload.timestamp || new Date().toISOString(),
+          }));
+        } else {
+          refreshWallet();
+        }
+      })
+      .subscribe();
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshWallet();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibility);
+      window.addEventListener('focus', refreshWallet);
+    }
+
+    return () => {
+      supabase.removeChannel(walletChannel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('focus', refreshWallet);
+      }
+    };
+  }, [user?.id]);
+
   // Sign up with email + password
   const signUp = async (email, password, fullName) => {
     const { data, error } = await supabase.auth.signUp({
