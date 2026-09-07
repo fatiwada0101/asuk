@@ -620,36 +620,73 @@ input, select, textarea {
   padding: 6px 8px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   box-shadow: var(--shadow-dock);
   backdrop-filter: blur(12px);
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
 }
 
 .dock-pill-active {
   background: #FFFFFF;
   color: #141417;
   border-radius: var(--radius-pill);
-  padding: 10px 18px;
+  padding: 10px 16px;
   font-weight: 700;
   font-size: 13px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   text-decoration: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .dock-item {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #8E8E93;
   transition: all 0.2s ease;
+  flex-shrink: 0;
   text-decoration: none;
   cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .floating-dock {
+    bottom: 14px;
+    padding: 5px 6px;
+    gap: 4px;
+  }
+  .dock-item {
+    width: 36px;
+    height: 36px;
+  }
+  .dock-pill-active {
+    padding: 8px 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 360px) {
+  .floating-dock {
+    padding: 4px 5px;
+    gap: 2px;
+  }
+  .dock-item {
+    width: 32px;
+    height: 32px;
+  }
+  .dock-pill-active {
+    padding: 6px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
 }
 
 .dock-item:hover {

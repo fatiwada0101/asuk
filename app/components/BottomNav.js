@@ -1,11 +1,12 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { HomeIcon, WifiIcon, WalletIcon, PieChartIcon, UserIcon } from './Icons';
+import { HomeIcon, WifiIcon, ActivityIcon, WalletIcon, PieChartIcon, UserIcon } from './Icons';
 
 const navItems = [
   { id: 'home', label: 'Home', icon: HomeIcon, path: '/' },
   { id: 'packages', label: 'Passes', icon: WifiIcon, path: '/packages' },
+  { id: 'telemetry', label: 'Session', icon: ActivityIcon, path: '/vouchers/status' },
   { id: 'wallet', label: 'Wallet', icon: WalletIcon, path: '/wallet' },
   { id: 'analytics', label: 'Analytics', icon: PieChartIcon, path: '/analytics' },
   { id: 'auth', label: 'Profile', icon: UserIcon, path: '/auth' },
@@ -25,6 +26,10 @@ export default function BottomNav() {
         const isActive =
           item.path === '/'
             ? pathname === '/'
+            : item.id === 'telemetry'
+            ? pathname.startsWith('/vouchers/status') || pathname.startsWith('/status')
+            : item.id === 'packages'
+            ? pathname.startsWith('/packages') || pathname === '/vouchers'
             : pathname.startsWith(item.path);
 
         if (isActive) {
