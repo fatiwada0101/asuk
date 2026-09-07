@@ -3163,47 +3163,52 @@ export default function SuperAdminPage() {
               <div className="sa-button-row" style={{ gap: 10 }}>
                 <button
                   className="sa-btn-primary"
-                  disabled={autoSetupLoading || !testResult?.connected}
-                  style={{ background: testResult?.connected ? 'linear-gradient(135deg, #22c55e, #16a34a)' : undefined, padding: '12px 28px', fontSize: '15px', fontWeight: 800 }}
+                  disabled={autoSetupLoading}
+                  style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', padding: '12px 28px', fontSize: '15px', fontWeight: 800 }}
                   onClick={async () => {
                     setAutoSetupLoading(true);
+                    setAutoSetupResult(null);
                     try {
-                      // Save settings first
+                      // Step 1: Save settings first
                       await saveMikrotik();
+                      showToast('Settings saved, testing connection...');
+
+                      // Step 2: Test connection
+                      const testRes = await fetch('/api/mikrotik/test', { headers: adminHeaders() });
+                      const testData = await testRes.json();
+                      setTestResult(testData);
+
+                      if (!testData.connected) {
+                        showToast('Cannot reach router - check IP, port, and credentials');
+                        setAutoSetupLoading(false);
+                        return;
+                      }
+                      showToast('Connected! Configuring router...');
+
+                      // Step 3: Save hotspot settings
+                      await fetch('/api/super-admin/settings', {
+                        method: 'POST',
+                        headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'hotspot_settings', value: hotspotSettings }),
+                      });
+
+                      // Step 4: Auto configure router
                       const res = await fetch('/api/mikrotik/auto-setup', {
                         method: 'POST',
                         headers: adminHeaders(),
                       });
                       const data = await res.json();
                       setAutoSetupResult(data);
-                      if (data.success) {
-                        showToast(data.summary || 'Ã¢Å“â€¦ Router configured!');
-                      } else {
-                        showToast('Ã¢ÂÅ’ Setup failed: ' + (data.error || 'Unknown error'));
-                      }
+                      showToast(data.summary || 'Router configured!');
                     } catch (e) {
-                      showToast('Ã¢ÂÅ’ Network error: ' + e.message);
+                      showToast('Error: ' + e.message);
                     }
                     setAutoSetupLoading(false);
                   }}
                 >
-                  {autoSetupLoading ? 'Ã¢ÂÂ³ Configuring Router...' : 'Ã¢Å¡Â¡ Auto Setup Router'}
-                </button>
-                <button
-                  className="sa-btn-outline"
-                  onClick={handleSyncHotspot}
-                  disabled={syncingHotspot}
-                  style={{ borderColor: '#7257FF', color: '#7257FF', fontWeight: 700 }}
-                >
-                  {syncingHotspot ? 'Pushing...' : `Ã°Å¸Å’Â Push "${mikrotikForm.hotspot_url || 'asuktech.net'}" to Router`}
+                  {autoSetupLoading ? 'Configuring Router...' : 'Auto Setup Router'}
                 </button>
               </div>
-
-              {!testResult?.connected && (
-                <div style={{ marginTop: 12, padding: '10px 16px', background: 'rgba(239,68,68,0.08)', borderRadius: 10, fontSize: '12.5px', color: '#DC2626' }}>
-                  Ã¢Å¡Â Ã¯Â¸Â Connect to the router first Ã¢â‚¬â€ click "Test Connection" above to verify your connection.
-                </div>
-              )}
 
               {/* Auto Setup Results */}
               {autoSetupResult?.results && (
