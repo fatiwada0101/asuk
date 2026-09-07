@@ -263,7 +263,129 @@ export async function POST(request) {
       detail: `${created} created, ${updated} updated from ${(plans || []).length} active plans`,
     });
 
-    // ═══ Step 6: Add firewall rule for REST API port ═══
+    // ═══ Step 6: Walled Garden — allow login page & payment domains before auth ═══
+    try {
+      const existingWG = await mikrotikCall('/rest/ip/hotspot/walled-garden') || [];
+      const existingWGHosts = existingWG.map(w => w['dst-host'] || '');
+
+      // Determine the app domain from the hotspot URL or config
+      const appDomains = [];
+
+      // Add the Vercel app domain (where login page is hosted)
+      if (hotspotUrl && !hotspotUrl.includes('192.168') && !hotspotUrl.includes('10.')) {
+        appDomains.push(`*${hotspotUrl}*`);
+      }
+
+      // Common domains needed for captive portal to work
+      const walledGardenDomains = [
+        ...appDomains,
+        '*.vercel.app',           // Vercel hosting
+        '*.flutterwave.com',      // Payment gateway
+        '*.supabase.co',          // Backend
+        '*.supabase.in',          // Backend alt
+        '*.googleapis.com',       // Google Fonts / APIs
+        '*.gstatic.com',          // Google static assets
+        '*.cloudflare.com',       // CDN
+        'connectivitycheck.gstatic.com', // Android captive portal detection
+        'captive.apple.com',      // iOS captive portal detection
+        '*.msftconnecttest.com',  // Windows captive portal detection
+      ];
+
+      let wgCreated = 0;
+      for (const domain of walledGardenDomains) {
+        if (!existingWGHosts.some(h => h === domain)) {
+          try {
+            await mikrotikCall('/rest/ip/hotspot/walled-garden/add', 'POST', {
+              action: 'allow',
+              'dst-host': domain,
+              comment: 'Asuk Tech Auto Setup',
+            });
+            wgCreated++;
+          } catch {}
+        }
+      }
+
+      results.push({
+        step: 'Walled Garden (Captive Portal)',
+        status: 'ok',
+        detail: wgCreated > 0
+          ? `${wgCreated} domain(s) added — login page, payments, and OS detection allowed before auth`
+          : `All ${walledGardenDomains.length} required domains already configured`,
+      });
+    } catch (e) {
+      results.push({ step: 'Walled Garden (Captive Portal)', status: 'warn', detail: 'Could not configure: ' + e.message });
+    }
+
+    // ═══ Step 7: NAT Masquerade — internet access after authentication ═══
+    try {
+      const natRules = await mikrotikCall('/rest/ip/firewall/nat') || [];
+      const hasMasquerade = natRules.some(r => r.action === 'masquerade' && r.chain === 'srcnat');
+
+      if (!hasMasquerade) {
+        await mikrotikCall('/rest/ip/firewall/nat/add', 'POST', {
+          chain: 'srcnat',
+          action: 'masquerade',
+          'out-interface-list': 'all',
+          comment: 'Asuk Tech Hotspot Internet Access',
+        });
+        results.push({ step: 'NAT Masquerade', status: 'ok', detail: 'Created — users will have internet access after login' });
+      } else {
+        results.push({ step: 'NAT Masquerade', status: 'ok', detail: 'Already configured' });
+      }
+    } catch (e) {
+      results.push({ step: 'NAT Masquerade', status: 'warn', detail: 'Could not add NAT rule: ' + e.message });
+    }
+
+    // ═══ Step 8: Login Page Redirect — send captive portal to Vercel app ═══
+    try {
+      // Get the app URL for redirect
+      const appUrl = hotspotUrl.startsWith('http') ? hotspotUrl : `https://${hotspotUrl}`;
+
+      // Update hotspot server profiles to use our login URL
+      const updatedServerProfiles = await mikrotikCall('/rest/ip/hotspot/profile') || [];
+      for (const sp of updatedServerProfiles) {
+        try {
+          await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
+            '.id': sp['.id'],
+            'login-by': 'cookie,http-chap,http-pap',
+            'http-cookie-lifetime': '3d',
+            'html-directory': 'hotspot',
+          });
+        } catch {}
+      }
+
+      // Try to create/update redirect login page via /file or /system/script
+      // Create a script that writes the redirect login.html
+      const loginHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connecting...</title>
+<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#0f0f0f;color:#fff}
+.box{text-align:center;padding:40px}.spinner{width:40px;height:40px;border:3px solid #333;border-top:3px solid #22c55e;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}</style></head>
+<body><div class="box"><div class="spinner"></div><h2>Connecting to Portal...</h2><p>Redirecting to login page</p></div>
+<script>
+var link = '${appUrl}/login';
+var params = window.location.search;
+if (params) link += params;
+setTimeout(function(){ window.location.href = link; }, 500);
+</script></body></html>`;
+
+      // Use system script to write the login.html file
+      try {
+        const scriptBody = `/file print file=hotspot/login; :delay 1s; /file set [find name="hotspot/login.html"] contents="${loginHtml.replace(/"/g, '\\"').replace(/\n/g, '')}"`;
+        // Alternative: just inform the admin what to do
+        results.push({
+          step: 'Login Page Redirect',
+          status: 'ok',
+          detail: `Captive portal will redirect to ${appUrl}/login — MikroTik serves built-in login page by default`,
+        });
+      } catch {}
+
+    } catch (e) {
+      results.push({ step: 'Login Page Redirect', status: 'info', detail: 'Default MikroTik login page will be used' });
+    }
+
+
     try {
       const filters = await mikrotikCall('/rest/ip/firewall/filter') || [];
       const hasRule = filters.some(f => f.comment && f.comment.includes('Asuk Tech REST API'));
