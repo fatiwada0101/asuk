@@ -386,10 +386,33 @@ ${useSsl ? `/ip service set www-ssl port=${routerPort} disabled=no` : `/ip servi
                     <strong style={{ color: '#121217' }}>☁️ Cloud / Vercel Deployment:</strong>
                     <p style={{ fontSize: '12.5px', marginTop: 4 }}>
                       If this app runs in the cloud, the cloud server needs to reach your router:
-                      <br /><strong>Option A (MikroTik Cloud DDNS)</strong>: In WinBox ➔ <code>IP</code> ➔ <code>Cloud</code> ➔ Check <code>DDNS Enabled</code>. Enter the generated DNS name in the IP box.
+                      <br /><strong>Option A (MikroTik Cloud DDNS)</strong>: In WinBox ➔ <code>IP</code> ➔ <code>Cloud</code> ➔ Check <code>DDNS Enabled</code> ➔ click <strong>Apply</strong>. Enter the generated DNS name in the IP box.
                       <br /><strong>Option B (Port Forwarding)</strong>: Forward port 443 on your ISP modem to the MikroTik WAN IP.
                     </p>
                   </div>
+                </div>
+
+                {/* What to do if IP -> Cloud DNS Name is empty */}
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  marginTop: 14,
+                  fontSize: '12.5px',
+                  color: '#92400E',
+                  lineHeight: 1.5,
+                }}>
+                  <strong style={{ display: 'block', marginBottom: 4, fontSize: '13px' }}>
+                    ❓ Why is the &ldquo;DNS Name&rdquo; in IP ➔ Cloud empty or blank?
+                  </strong>
+                  If the DNS Name field is completely blank or stays at <em>&ldquo;connecting...&rdquo;</em>, check these common reasons:
+                  <ol style={{ paddingLeft: 18, marginTop: 6, marginBottom: 6 }}>
+                    <li><strong>Did you click &ldquo;Apply&rdquo;?</strong> RouterOS will NOT generate the name until you check <strong>DDNS Enabled</strong> and then click the <strong>Apply</strong> button at the top/bottom!</li>
+                    <li><strong>Router WAN Internet:</strong> Your router must be connected to working internet and have DNS servers configured in <code>IP ➔ DNS</code> (e.g. <code>8.8.8.8</code>). MikroTik contacts <code>cloud.mikrotik.com</code> to register the serial number.</li>
+                    <li><strong>Virtual Machine / CHR vs Physical Router:</strong> If running RouterOS on a PC or VM (CHR / x86), Cloud DDNS is unavailable because it requires physical RouterBOARD hardware serial numbers.</li>
+                    <li><strong>Testing Locally? You don&apos;t need Cloud DDNS!</strong> If you are testing from your PC, simply check your router&apos;s real local IP in WinBox: go to <strong>IP ➔ Addresses</strong> (e.g. <code>192.168.0.x</code> or <code>192.168.88.1</code>) and enter that IP in the router settings above!</li>
+                  </ol>
                 </div>
               </div>
             )}
