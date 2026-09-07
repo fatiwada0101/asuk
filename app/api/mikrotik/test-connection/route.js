@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
-import { testConnection, getHotspotProfiles } from '@/lib/mikrotik';
+import { NextResponse } from 'next/server.js';
+import { testConnection, getHotspotProfiles } from '@/lib/mikrotik.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
-export async function GET() {
+export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const result = await testConnection();
     const profiles = await getHotspotProfiles();

@@ -68,7 +68,7 @@ function VoucherStatusContent() {
 
       if (res.ok && json.success) {
         setData(json);
-        setLocalSecondsRemaining(json.seconds_remaining);
+        setLocalSecondsRemaining(Math.max(0, Number(json.seconds_remaining) || 0));
         lastSyncTimeRef.current = Date.now();
       } else {
         setError(json.error || 'Could not find voucher details');
@@ -98,21 +98,29 @@ function VoucherStatusContent() {
   // Local second-by-second countdown ticker — re-starts on each server sync
   const tickerRef = useRef(null);
   useEffect(() => {
-    if (tickerRef.current) clearInterval(tickerRef.current);
+    if (tickerRef.current) {
+      clearInterval(tickerRef.current);
+      tickerRef.current = null;
+    }
 
     tickerRef.current = setInterval(() => {
       setLocalSecondsRemaining((prev) => {
         if (prev === null || prev <= 0) {
-          clearInterval(tickerRef.current);
-          tickerRef.current = null;
+          if (tickerRef.current) {
+            clearInterval(tickerRef.current);
+            tickerRef.current = null;
+          }
           return 0;
         }
-        return prev - 1;
+        return Math.max(0, prev - 1);
       });
     }, 1000);
 
     return () => {
-      if (tickerRef.current) clearInterval(tickerRef.current);
+      if (tickerRef.current) {
+        clearInterval(tickerRef.current);
+        tickerRef.current = null;
+      }
     };
   }, [data]); // re-start only when server syncs new data
 

@@ -90,33 +90,44 @@ export async function POST(request) {
       console.warn('Could not read flutterwave setting from DB:', e.message);
     }
 
-    // 3. Verify with Flutterwave API if secret key is present
-    if (secretKey) {
-      try {
-        const flwRes = await fetch(`https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
+    // 3. Strict verification with Flutterwave API (never bypass if unconfigured)
+    if (!secretKey) {
+      return NextResponse.json({
+        error: 'Payment verification is not available because Flutterwave Secret Key is not configured on the server. Please contact administrator.',
+      }, { status: 503 });
+    }
 
-        if (!flwRes.ok) {
-          return NextResponse.json({ error: 'Failed to verify payment with payment gateway' }, { status: 400 });
-        }
+    try {
+      const flwRes = await fetch(`https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-        const flwData = await flwRes.json();
-        if (flwData.status !== 'success' || flwData.data?.status !== 'successful') {
-          return NextResponse.json({ error: 'Payment was not successful or was declined' }, { status: 400 });
-        }
-
-        if (Number(flwData.data?.amount) < numericPrice) {
-          return NextResponse.json({ error: 'Payment amount does not match plan price' }, { status: 400 });
-        }
-      } catch (flwErr) {
-        console.error('Flutterwave verify error:', flwErr);
-        return NextResponse.json({ error: 'Unable to verify payment with gateway: ' + flwErr.message }, { status: 502 });
+      if (!flwRes.ok) {
+        return NextResponse.json({ error: 'Failed to verify payment with payment gateway' }, { status: 400 });
       }
+
+      const flwData = await flwRes.json();
+      if (flwData.status !== 'success' || flwData.data?.status !== 'successful') {
+        return NextResponse.json({ error: 'Payment was not successful or was declined' }, { status: 400 });
+      }
+
+      const paidAmount = Number(flwData.data?.amount || 0);
+      const expectedAmount = planData?.price ? Number(planData.price) : numericPrice;
+
+      if (paidAmount < expectedAmount) {
+        return NextResponse.json({ error: `Payment amount (₦${paidAmount}) does not match plan price (₦${expectedAmount})` }, { status: 400 });
+      }
+
+      if (flwData.data?.currency && flwData.data.currency !== 'NGN') {
+        return NextResponse.json({ error: 'Invalid currency for transaction' }, { status: 400 });
+      }
+    } catch (flwErr) {
+      console.error('Flutterwave verify error:', flwErr);
+      return NextResponse.json({ error: 'Unable to verify payment with gateway: ' + flwErr.message }, { status: 502 });
     }
 
     // 4. Generate random voucher code

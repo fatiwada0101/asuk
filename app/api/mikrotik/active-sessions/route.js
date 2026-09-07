@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
-import { getActiveSessions } from '@/lib/mikrotik';
+import { NextResponse } from 'next/server.js';
+import { getActiveSessions } from '@/lib/mikrotik.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
-export async function GET() {
+export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const sessions = await getActiveSessions();
     return NextResponse.json({ sessions });

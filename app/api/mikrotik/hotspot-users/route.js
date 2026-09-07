@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
-import { getHotspotUsers, deleteHotspotUser, updateHotspotUser } from '@/lib/mikrotik';
-import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
+import { NextResponse } from 'next/server.js';
+import { getHotspotUsers, deleteHotspotUser, updateHotspotUser } from '@/lib/mikrotik.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
 // GET — List all hotspot users on the router
-export async function GET() {
+export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const users = await getHotspotUsers();
     return NextResponse.json({ success: true, users });

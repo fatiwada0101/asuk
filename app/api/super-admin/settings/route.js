@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
+import { validateAdminAuth, unauthorizedResponse, invalidateAdminCredsCache } from '@/lib/admin-auth';
 
 // GET — fetch all settings
 export async function GET(request) {
@@ -46,6 +46,10 @@ export async function POST(request) {
       }, { onConflict: 'key' });
 
     if (error) throw error;
+
+    if (key === 'super_admin') {
+      invalidateAdminCredsCache();
+    }
 
     return NextResponse.json({ success: true, key });
   } catch (error) {

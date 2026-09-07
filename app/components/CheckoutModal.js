@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
+import { supabase } from '../../lib/supabase';
 
 export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const router = useRouter();
@@ -128,9 +129,16 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
     setLoadingText('Connecting to MikroTik Router...');
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/purchase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           plan_id: plan.id,
           plan_name: plan.name,

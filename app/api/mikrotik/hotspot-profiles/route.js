@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server.js';
 import {
   getHotspotProfiles,
   createHotspotProfile,
   updateHotspotProfile,
   deleteHotspotProfile,
-} from '@/lib/mikrotik';
+} from '@/lib/mikrotik.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
 // GET — List all hotspot user profiles
-export async function GET() {
+export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const profiles = await getHotspotProfiles();
     return NextResponse.json({ success: true, profiles });
@@ -22,6 +24,7 @@ export async function GET() {
 
 // PUT — Create a new hotspot user profile
 export async function PUT(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const profileData = await request.json();
 
@@ -53,6 +56,7 @@ export async function PUT(request) {
 
 // PATCH — Update an existing profile
 export async function PATCH(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const { profile_id, ...updateData } = await request.json();
     if (!profile_id) {
@@ -80,6 +84,7 @@ export async function PATCH(request) {
 
 // DELETE — Remove a hotspot user profile
 export async function DELETE(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     const { profile_id } = await request.json();
     if (!profile_id) {

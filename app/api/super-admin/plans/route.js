@@ -2,14 +2,22 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 
-// GET — fetch all plans (public, no auth required)
-export async function GET() {
+// GET — fetch plans (active only for public, all plans for admin when requested)
+export async function GET(request) {
   try {
-    const { data, error } = await supabaseAdmin
+    const url = new URL(request.url);
+    const showAll = url.searchParams.get('all') === 'true' || (await validateAdminAuth(request));
+
+    let query = supabaseAdmin
       .from('plans')
       .select('*')
-      .eq('active', true)
       .order('sort_order', { ascending: true });
+
+    if (!showAll) {
+      query = query.eq('active', true);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 

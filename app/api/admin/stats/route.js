@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-server';
+import { NextResponse } from 'next/server.js';
+import { supabaseAdmin } from '@/lib/supabase-server.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
-export async function GET() {
+export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   try {
     // Single RPC call — all aggregation happens server-side in PostgreSQL.
     // Replaces the old approach of loading all voucher rows into Node.js memory.

@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-server';
-import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik';
+import { NextResponse } from 'next/server.js';
+import { supabaseAdmin } from '@/lib/supabase-server.js';
+import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik.js';
+import { validateUserAuth, userUnauthorizedResponse } from '@/lib/user-auth.js';
 
 /**
  * Helper: Generate a collision-resistant 6-char voucher code with retry
@@ -51,37 +52,62 @@ async function getHotspotSettings() {
 
 export async function POST(request) {
   try {
-    const { plan_id, plan_name, price, duration, user_id } = await request.json();
+    const body = await request.json();
+    const { plan_id, plan_name, duration, user_id } = body;
 
-    if (!plan_name || !price) {
-      return NextResponse.json({ error: 'Missing plan name or price' }, { status: 400 });
+    // 1. Verify User Authentication (protects against wallet drain)
+    const authUser = await validateUserAuth(request);
+    if (!authUser) {
+      return userUnauthorizedResponse('Authentication required to purchase passes with wallet balance');
     }
 
-    const numericPrice = Number(price);
-
-    if (!user_id) {
-      return NextResponse.json({
-        error: 'Payment required. Please complete card/bank transfer payment or sign in to use your wallet.',
-      }, { status: 402 });
+    if (user_id && authUser.id !== user_id) {
+      return NextResponse.json({ error: 'Unauthorized: Cannot purchase using another user wallet' }, { status: 403 });
     }
+    const effectiveUserId = authUser.id;
+
+    // 2. Fetch authoritative plan details directly from DB (prevents price tampering)
+    let authoritativePlan = null;
+    if (plan_id) {
+      const { data } = await supabaseAdmin
+        .from('plans')
+        .select('*')
+        .eq('id', plan_id)
+        .maybeSingle();
+      authoritativePlan = data;
+    }
+    if (!authoritativePlan && plan_name) {
+      const { data } = await supabaseAdmin
+        .from('plans')
+        .select('*')
+        .eq('name', plan_name)
+        .maybeSingle();
+      authoritativePlan = data;
+    }
+
+    if (!authoritativePlan) {
+      return NextResponse.json({ error: 'Selected internet plan was not found in catalog' }, { status: 400 });
+    }
+
+    const numericPrice = Number(authoritativePlan.price);
+    const effectivePlanName = authoritativePlan.name;
+    const effectiveDuration = authoritativePlan.duration || duration || '24h';
 
     // ── IDEMPOTENCY GUARD: prevent double-deduction from rapid double-click ──
-    // If this user purchased the exact same plan in the last 15 seconds, return
-    // the existing voucher instead of charging again.
     try {
       const windowStart = new Date(Date.now() - 15000).toISOString();
       const { data: recentPurchase } = await supabaseAdmin
         .from('vouchers')
         .select('voucher_code, profile_name, price')
-        .eq('user_id', user_id)
-        .eq('profile_name', plan_name)
+        .eq('user_id', effectiveUserId)
+        .eq('profile_name', effectivePlanName)
         .gte('created_at', windowStart)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (recentPurchase) {
-        console.log(`Idempotency hit (wallet): user ${user_id} already bought "${plan_name}" within last 15s — returning existing voucher`);
+        console.log(`Idempotency hit (wallet): user ${effectiveUserId} already bought "${effectivePlanName}" within last 15s — returning existing voucher`);
         return NextResponse.json({
           success: true,
           voucher_code: recentPurchase.voucher_code,
@@ -95,28 +121,22 @@ export async function POST(request) {
       console.warn('Wallet idempotency check failed (non-fatal):', e.message);
     }
 
-    // 1. Fetch plan details + global hotspot settings in parallel
-    const [planResult, hotspotSettings] = await Promise.all([
-      plan_id
-        ? supabaseAdmin.from('plans').select('devices, upload_speed, download_speed').eq('id', plan_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-      getHotspotSettings(),
-    ]);
+    // 3. Fetch global hotspot settings
+    const hotspotSettings = await getHotspotSettings();
 
-    const planData = planResult?.data;
-    let planDevices = Number(planData?.devices) || 1;
-    let planUploadSpeed = planData?.upload_speed || '12M';
-    let planDownloadSpeed = planData?.download_speed || '12M';
+    let planDevices = Number(authoritativePlan.devices) || 1;
+    let planUploadSpeed = authoritativePlan.upload_speed || '12M';
+    let planDownloadSpeed = authoritativePlan.download_speed || '12M';
 
     // If sharing is disabled globally, force 1 device
     if (!hotspotSettings.sharing_enabled) {
       planDevices = 1;
     }
 
-    // 2. ATOMIC wallet deduction — prevents race condition
+    // 4. ATOMIC wallet deduction — prevents race condition
     const { data: rpcResult, error: rpcErr } = await supabaseAdmin
       .rpc('adjust_wallet_balance', {
-        p_user_id: user_id,
+        p_user_id: effectiveUserId,
         p_amount: numericPrice,
         p_operation: 'deduct',
       });
@@ -154,9 +174,9 @@ export async function POST(request) {
         routerResult = await createHotspotUser({
           code,
           password: code,
-          profile: plan_name,
-          limitUptime: uptimeMap[duration] || '1d',
-          comment: `User ${user_id} - ${plan_name} - ₦${numericPrice}`,
+          profile: effectivePlanName,
+          limitUptime: uptimeMap[effectiveDuration] || '1d',
+          comment: `User ${effectiveUserId} - ${effectivePlanName} - ₦${numericPrice}`,
           shared_users: planDevices,
           rate_limit: rateLimit,
           expiry_mode: hotspotSettings.expiry_mode || 'elapsed',
@@ -167,58 +187,58 @@ export async function POST(request) {
         // Atomic, race-condition safe claim from fallback pool (strict plan isolation)
         const { data: claimedRows, error: claimErr } = await supabaseAdmin
           .rpc('claim_fallback_voucher', {
-            p_profile_name: plan_name,
-            p_plan_id: plan_id || null,
-            p_user_id: user_id,
+            p_profile_name: effectivePlanName,
+            p_plan_id: authoritativePlan.id || null,
+            p_user_id: effectiveUserId,
           });
 
         if (!claimErr && claimedRows && claimedRows.length > 0) {
           const claimed = claimedRows[0];
-          console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} after router API failure`);
+          console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${effectivePlanName} after router API failure`);
           code = claimed.voucher_code;
           isFallback = true;
         } else {
           // Router failed AND no fallback vouchers — refund wallet!
           console.error('No fallback voucher available, refunding wallet:', routerErr.message);
           await supabaseAdmin.rpc('adjust_wallet_balance', {
-            p_user_id: user_id,
+            p_user_id: effectiveUserId,
             p_amount: numericPrice,
             p_operation: 'add',
           });
 
           return NextResponse.json({
-            error: `Router connection failed: ${routerErr.message}. No fallback vouchers in reserve for "${plan_name}". Your wallet has been refunded.`,
+            error: `Router connection failed: ${routerErr.message}. No fallback vouchers in reserve for "${effectivePlanName}". Your wallet has been refunded.`,
             router_error: true,
           }, { status: 502 });
         }
       }
     } else {
       // Router is NOT configured in settings: trigger fallback pool directly
-      console.log(`MikroTik router is not configured in settings. Triggering fallback pool directly for "${plan_name}"`);
+      console.log(`MikroTik router is not configured in settings. Triggering fallback pool directly for "${effectivePlanName}"`);
 
       const { data: claimedRows, error: claimErr } = await supabaseAdmin
         .rpc('claim_fallback_voucher', {
-          p_profile_name: plan_name,
-          p_plan_id: plan_id || null,
-          p_user_id: user_id,
+          p_profile_name: effectivePlanName,
+          p_plan_id: authoritativePlan.id || null,
+          p_user_id: effectiveUserId,
         });
 
       if (!claimErr && claimedRows && claimedRows.length > 0) {
         const claimed = claimedRows[0];
-        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} (Router not configured)`);
+        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${effectivePlanName} (Router not configured)`);
         code = claimed.voucher_code;
         isFallback = true;
       } else {
         // Router not configured AND no fallback vouchers available — refund wallet!
         console.error('Router not configured and no fallback vouchers available, refunding wallet');
         await supabaseAdmin.rpc('adjust_wallet_balance', {
-          p_user_id: user_id,
+          p_user_id: effectiveUserId,
           p_amount: numericPrice,
           p_operation: 'add',
         });
 
         return NextResponse.json({
-          error: `The Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${plan_name}". Your wallet has been refunded.`,
+          error: `The Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${effectivePlanName}". Your wallet has been refunded.`,
           router_error: true,
         }, { status: 502 });
       }
@@ -229,7 +249,7 @@ export async function POST(request) {
       const { data: tx } = await supabaseAdmin
         .from('transactions')
         .insert({
-          user_id,
+          user_id: effectiveUserId,
           type: 'voucher_purchase',
           amount: numericPrice,
           status: 'successful',
@@ -241,9 +261,9 @@ export async function POST(request) {
       await supabaseAdmin
         .from('vouchers')
         .insert({
-          user_id,
+          user_id: effectiveUserId,
           voucher_code: code,
-          profile_name: plan_name,
+          profile_name: effectivePlanName,
           price: numericPrice,
           transaction_id: tx?.id || null,
           is_used: false,
@@ -252,7 +272,7 @@ export async function POST(request) {
       // DB insert failed after wallet was already deducted — refund immediately
       console.error('DB insert failed after provisioning — refunding wallet:', dbErr.message);
       await supabaseAdmin.rpc('adjust_wallet_balance', {
-        p_user_id: user_id,
+        p_user_id: effectiveUserId,
         p_amount: numericPrice,
         p_operation: 'add',
       }).catch((refundErr) => console.error('Refund also failed!', refundErr.message));
@@ -266,9 +286,9 @@ export async function POST(request) {
     // 7. Create notification (non-fatal)
     try {
       await supabaseAdmin.from('notifications').insert({
-        user_id,
+        user_id: effectiveUserId,
         title: isFallback ? 'Wi-Fi Pass Purchased (Backup Pool)' : 'Wi-Fi Pass Purchased',
-        message: `${plan_name} pass activated. Your voucher code: ${code}`,
+        message: `${effectivePlanName} pass activated. Your voucher code: ${code}`,
         type: 'voucher_purchase',
       });
     } catch (e) {}
@@ -276,10 +296,10 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       voucher_code: code,
-      plan: plan_name,
+      plan: effectivePlanName,
       price: numericPrice,
       router_id: routerResult?.routerId || null,
-      profile: routerResult?.profile || plan_name,
+      profile: routerResult?.profile || effectivePlanName,
       new_balance: newBalance,
       is_fallback: isFallback,
     });

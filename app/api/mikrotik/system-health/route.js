@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
-import { getSystemHealth, getDHCPLeases, getRouterLogs, getInterfaces } from '@/lib/mikrotik';
+import { NextResponse } from 'next/server.js';
+import { getSystemHealth, getDHCPLeases, getRouterLogs, getInterfaces } from '@/lib/mikrotik.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
 // GET — Aggregated system health, DHCP leases, interfaces, and logs
 export async function GET(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
   const { searchParams } = new URL(request.url);
   const logTopics = searchParams.get('log_topics') || null;
 

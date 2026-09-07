@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
@@ -23,6 +23,7 @@ export default function WalletPage() {
   const router = useRouter();
   const { user, profile, wallet, refreshWallet, loading: authLoading } = useAuth();
   const { appName } = useBranding();
+  const topupProcessingRef = useRef(false);
 
   const [activeSegment, setActiveSegment] = useState('vouchers'); // 'deposits' | 'vouchers'
   const [amountVal, setAmountVal] = useState('2000.00');
@@ -72,75 +73,74 @@ export default function WalletPage() {
   }, []);
 
   // Fetch real transaction data for charts
-  useEffect(() => {
+  const fetchTransactions = useCallback(async () => {
     if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'successful')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-    const fetchTransactions = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'successful')
-          .order('created_at', { ascending: false })
-          .limit(100);
+      if (!error && data) {
+        setTransactions(data);
 
-        if (!error && data) {
-          setTransactions(data);
+        // Compute totals
+        let deposits = 0;
+        let spending = 0;
+        data.forEach(tx => {
+          if (tx.type === 'wallet_topup') deposits += Number(tx.amount);
+          else if (tx.type === 'voucher_purchase') spending += Number(tx.amount);
+        });
+        setTotalDeposits(deposits);
+        setTotalSpending(spending);
 
-          // Compute totals
-          let deposits = 0;
-          let spending = 0;
-          data.forEach(tx => {
-            if (tx.type === 'wallet_topup') deposits += Number(tx.amount);
-            else if (tx.type === 'voucher_purchase') spending += Number(tx.amount);
+        // Compute weekly bar chart from real data
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const today = new Date();
+        const weekData = [];
+
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          const dayName = days[d.getDay()];
+          const dateStr = d.toISOString().split('T')[0];
+
+          const dayTotal = data
+            .filter(tx => {
+              const txDate = new Date(tx.created_at).toISOString().split('T')[0];
+              return txDate === dateStr;
+            })
+            .reduce((sum, tx) => sum + Number(tx.amount), 0);
+
+          weekData.push({
+            day: dayName,
+            amount: dayTotal,
+            isToday: i === 0,
           });
-          setTotalDeposits(deposits);
-          setTotalSpending(spending);
-
-          // Compute weekly bar chart from real data
-          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const today = new Date();
-          const weekData = [];
-
-          for (let i = 6; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            const dayName = days[d.getDay()];
-            const dateStr = d.toISOString().split('T')[0];
-
-            const dayTotal = data
-              .filter(tx => {
-                const txDate = new Date(tx.created_at).toISOString().split('T')[0];
-                return txDate === dateStr;
-              })
-              .reduce((sum, tx) => sum + Number(tx.amount), 0);
-
-            weekData.push({
-              day: dayName,
-              amount: dayTotal,
-              isToday: i === 0,
-            });
-          }
-
-          // Normalize heights
-          const maxAmt = Math.max(...weekData.map(w => w.amount), 100);
-          weekData.forEach(w => {
-            w.height = Math.max(12, Math.round((w.amount / maxAmt) * 100));
-          });
-
-          setWeeklyData(weekData);
         }
-      } catch (err) {
-        console.error('Error fetching transactions:', err);
-      }
-    };
 
-    fetchTransactions();
+        // Normalize heights
+        const maxAmt = Math.max(...weekData.map(w => w.amount), 100);
+        weekData.forEach(w => {
+          w.height = Math.max(12, Math.round((w.amount / maxAmt) * 100));
+        });
+
+        setWeeklyData(weekData);
+      }
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+    }
   }, [user]);
 
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
   const handleFundWallet = async () => {
-    if (loading) return;
+    if (loading || topupProcessingRef.current) return;
 
     const num = parseFloat(amountVal);
     if (!num || num < 100) {
@@ -179,7 +179,8 @@ export default function WalletPage() {
       },
       callback: async function (response) {
         if (response.status === 'successful' || response.status === 'completed') {
-          await finalizeTopup(num, txRef);
+          const transactionId = response.transaction_id || response.id;
+          await finalizeTopup(num, txRef, transactionId);
         } else {
           showToast('Payment was cancelled or failed');
         }
@@ -190,16 +191,27 @@ export default function WalletPage() {
     });
   };
 
-  const finalizeTopup = async (amount, ref) => {
+  const finalizeTopup = async (amount, ref, transactionId) => {
+    if (topupProcessingRef.current) return;
+    topupProcessingRef.current = true;
     setLoading(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/wallet/topup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           amount,
           user_id: user.id,
           flw_ref: ref,
+          transaction_id: transactionId,
         }),
       });
 
@@ -207,11 +219,13 @@ export default function WalletPage() {
       if (!res.ok) throw new Error(data.error || 'Top-up failed');
 
       await refreshWallet();
+      await fetchTransactions();
       showToast(`✅ ${formatPrice(amount)} added to your wallet!`);
     } catch (err) {
       showToast('Error: ' + err.message);
     } finally {
       setLoading(false);
+      topupProcessingRef.current = false;
     }
   };
 

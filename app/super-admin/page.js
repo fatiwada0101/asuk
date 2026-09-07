@@ -83,7 +83,17 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
     return { start, end };
   }, [customStart, customEnd]);
 
+  const abortControllerRef = useRef(null);
+  const seqRef = useRef(0);
+
   const fetchFinanceData = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const currentSeq = ++seqRef.current;
+
     setFinLoading(true);
     try {
       const { start, end } = getDateRange(dateFilter);
@@ -97,14 +107,24 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
 
       const res = await fetch(`/api/super-admin/finance?${params.toString()}`, {
         headers: adminHeaders(),
+        signal: controller.signal,
       });
+
+      if (currentSeq !== seqRef.current) return; // Discard response from outdated request
+
       if (res.ok) {
         setFinanceData(await res.json());
       } else {
         showToast('Failed to load finance data');
       }
-    } catch { showToast('Network error'); }
-    setFinLoading(false);
+    } catch (err) {
+      if (err.name === 'AbortError') return; // Clean cancellation
+      showToast('Network error');
+    } finally {
+      if (currentSeq === seqRef.current) {
+        setFinLoading(false);
+      }
+    }
   }, [dateFilter, getDateRange, page, limit, search, adminHeaders, showToast]);
 
   useEffect(() => { fetchFinanceData(); }, [fetchFinanceData]);
@@ -1633,6 +1653,8 @@ export default function SuperAdminPage() {
     health: [], leases: [], logs: [], interfaces: [],
   });
   const [networkLoading, setNetworkLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const actionLockRef = useRef(false);
 
   // Misc
   const [copiedPin, setCopiedPin] = useState('');
@@ -1692,10 +1714,10 @@ export default function SuperAdminPage() {
     setLoading(true);
     try {
       const [statsRes, settingsRes, plansRes, sessionsRes] = await Promise.all([
-        fetch('/api/admin/stats'),
+        fetch('/api/admin/stats', { headers: adminHeaders() }),
         fetch('/api/super-admin/settings', { headers: adminHeaders() }),
-        fetch('/api/super-admin/plans'),
-        fetch('/api/mikrotik/active-sessions'),
+        fetch('/api/super-admin/plans?all=true', { headers: adminHeaders() }),
+        fetch('/api/mikrotik/active-sessions', { headers: adminHeaders() }),
       ]);
 
       if (statsRes.ok) {
@@ -1731,33 +1753,36 @@ export default function SuperAdminPage() {
   }, [token, adminHeaders]);
 
   const fetchRouterUsers = useCallback(async () => {
+    if (!token) return;
     setRouterUsersLoading(true);
     try {
-      const res = await fetch('/api/mikrotik/hotspot-users');
+      const res = await fetch('/api/mikrotik/hotspot-users', { headers: adminHeaders() });
       if (res.ok) {
         const d = await res.json();
         setRouterUsers(d.users || []);
       }
     } catch (err) { console.error('Router users error:', err); }
     finally { setRouterUsersLoading(false); }
-  }, []);
+  }, [token, adminHeaders]);
 
   const fetchRouterProfiles = useCallback(async () => {
+    if (!token) return;
     setProfilesLoading(true);
     try {
-      const res = await fetch('/api/mikrotik/hotspot-profiles');
+      const res = await fetch('/api/mikrotik/hotspot-profiles', { headers: adminHeaders() });
       if (res.ok) {
         const d = await res.json();
         setRouterProfiles(d.profiles || []);
       }
     } catch (err) { console.error('Router profiles error:', err); }
     finally { setProfilesLoading(false); }
-  }, []);
+  }, [token, adminHeaders]);
 
   const fetchNetworkHealth = useCallback(async () => {
+    if (!token) return;
     setNetworkLoading(true);
     try {
-      const res = await fetch('/api/mikrotik/system-health');
+      const res = await fetch('/api/mikrotik/system-health', { headers: adminHeaders() });
       if (res.ok) {
         const d = await res.json();
         setNetworkData({
@@ -1767,12 +1792,12 @@ export default function SuperAdminPage() {
       }
     } catch (err) { console.error('Network health error:', err); }
     finally { setNetworkLoading(false); }
-  }, []);
+  }, [token, adminHeaders]);
 
-  const handleTestMikrotik = async (silent = false) => {
+  const handleTestMikrotik = useCallback(async (silent = false) => {
     setTestLoading(true);
     try {
-      const res = await fetch('/api/mikrotik/test-connection');
+      const res = await fetch('/api/mikrotik/test-connection', { headers: adminHeaders() });
       const data = await res.json();
       setTestResult(data);
       if (!silent) {
@@ -1783,7 +1808,7 @@ export default function SuperAdminPage() {
       setTestResult({ connected: false, error: err.message });
       if (!silent) showToast('Network error');
     } finally { setTestLoading(false); }
-  };
+  }, [adminHeaders]);
 
   // Initial load
   useEffect(() => {
@@ -1804,6 +1829,9 @@ export default function SuperAdminPage() {
   // ── Action Handlers ────────────────────────────────────────
 
   const saveMikrotik = async () => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/super-admin/settings', {
         method: 'POST', headers: adminHeaders(),
@@ -1812,9 +1840,16 @@ export default function SuperAdminPage() {
       if (res.ok) { showToast('✅ MikroTik settings saved!'); handleTestMikrotik(); }
       else showToast('❌ Failed to save');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const saveFlutterwave = async () => {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/super-admin/settings', {
         method: 'POST', headers: adminHeaders(),
@@ -1823,13 +1858,20 @@ export default function SuperAdminPage() {
       if (res.ok) showToast('✅ Flutterwave saved!');
       else showToast('❌ Failed to save');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   // Plan CRUD
   const savePlan = async () => {
+    if (actionLockRef.current) return;
     if (!planForm.id || !planForm.name || !planForm.price || !planForm.duration) {
       showToast('Fill all required plan fields'); return;
     }
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/super-admin/plans', {
         method: 'POST', headers: adminHeaders(), body: JSON.stringify(planForm),
@@ -1841,16 +1883,27 @@ export default function SuperAdminPage() {
         fetchCoreData();
       } else showToast('Failed to save plan');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const deletePlan = async (id) => {
+    if (actionLockRef.current) return;
     if (!confirm('Delete this internet plan?')) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/super-admin/plans', {
         method: 'DELETE', headers: adminHeaders(), body: JSON.stringify({ id }),
       });
       if (res.ok) { showToast('Plan deleted'); fetchCoreData(); }
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const startEditPlan = (p) => {
@@ -1860,7 +1913,10 @@ export default function SuperAdminPage() {
 
   // Session kick
   const kickUser = async (sessionId, username) => {
+    if (actionLockRef.current) return;
     if (!confirm(`Disconnect "${username}"?`)) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/mikrotik/kick-user', {
         method: 'POST', headers: adminHeaders(),
@@ -1868,6 +1924,10 @@ export default function SuperAdminPage() {
       });
       if (res.ok) { showToast(`Disconnected: ${username}`); fetchCoreData(); }
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   // Voucher Generator
@@ -1896,7 +1956,10 @@ export default function SuperAdminPage() {
 
   // Router User Management
   const handleDeleteRouterUser = async (userId, name) => {
+    if (actionLockRef.current) return;
     if (!confirm(`Delete router user "${name}"? This removes the voucher from MikroTik.`)) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/mikrotik/hotspot-users', {
         method: 'DELETE',
@@ -1906,10 +1969,17 @@ export default function SuperAdminPage() {
       if (res.ok) { showToast(`Deleted: ${name}`); fetchRouterUsers(); }
       else showToast('Failed to delete');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const handleUpdateRouterUser = async () => {
+    if (actionLockRef.current) return;
     if (!editingUser) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const body = { user_id: editingUser };
       if (userEditForm['limit-uptime']) body['limit-uptime'] = userEditForm['limit-uptime'];
@@ -1926,16 +1996,23 @@ export default function SuperAdminPage() {
         fetchRouterUsers();
       } else showToast('Update failed');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   // Hotspot Profile Management
   const handleSaveProfile = async () => {
-    if (editingProfile) {
-      // Update existing
-      try {
+    if (actionLockRef.current) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
+    try {
+      if (editingProfile) {
+        // Update existing
         const res = await fetch('/api/mikrotik/hotspot-profiles', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: adminHeaders(),
           body: JSON.stringify({ profile_id: editingProfile, ...profileForm }),
         });
         if (res.ok) {
@@ -1944,14 +2021,12 @@ export default function SuperAdminPage() {
           setProfileForm({ name: '', 'rate-limit': '', 'shared-users': '1', 'session-timeout': '', 'idle-timeout': '', 'keepalive-timeout': '' });
           fetchRouterProfiles();
         } else showToast('Update failed');
-      } catch { showToast('Network error'); }
-    } else {
-      // Create new
-      if (!profileForm.name) { showToast('Profile name required'); return; }
-      try {
+      } else {
+        // Create new
+        if (!profileForm.name) { showToast('Profile name required'); return; }
         const res = await fetch('/api/mikrotik/hotspot-profiles', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: adminHeaders(),
           body: JSON.stringify(profileForm),
         });
         if (res.ok) {
@@ -1959,21 +2034,32 @@ export default function SuperAdminPage() {
           setProfileForm({ name: '', 'rate-limit': '', 'shared-users': '1', 'session-timeout': '', 'idle-timeout': '', 'keepalive-timeout': '' });
           fetchRouterProfiles();
         } else showToast('Creation failed');
-      } catch { showToast('Network error'); }
+      }
+    } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
     }
   };
 
   const handleDeleteProfile = async (profileId, name) => {
+    if (actionLockRef.current) return;
     if (!confirm(`Delete profile "${name}" from the router?`)) return;
+    actionLockRef.current = true;
+    setActionBusy(true);
     try {
       const res = await fetch('/api/mikrotik/hotspot-profiles', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({ profile_id: profileId }),
       });
       if (res.ok) { showToast('Profile deleted'); fetchRouterProfiles(); }
       else showToast('Delete failed');
     } catch { showToast('Network error'); }
+    finally {
+      actionLockRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const startEditProfile = (p) => {

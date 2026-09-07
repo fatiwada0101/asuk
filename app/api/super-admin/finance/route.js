@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-server';
-import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
+import { NextResponse } from 'next/server.js';
+import { supabaseAdmin } from '@/lib/supabase-server.js';
+import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth.js';
 
 export async function GET(request) {
   if (!(await validateAdminAuth(request))) return unauthorizedResponse();
@@ -14,11 +14,11 @@ export async function GET(request) {
     const search = searchParams.get('search')?.trim();
     const exportAll = searchParams.get('export_all') === 'true';
 
-    // 1. Build query for summary KPIs across the full date range
+    // 1. Build query for summary KPIs across the full date range (includes member purchases & guest purchases with tx_ref)
     let summaryQuery = supabaseAdmin
       .from('vouchers')
       .select('profile_name, price, created_at')
-      .not('user_id', 'is', null);
+      .or('user_id.not.is.null,tx_ref.not.is.null');
 
     if (startDate) {
       summaryQuery = summaryQuery.gte('created_at', `${startDate}T00:00:00`);
@@ -58,8 +58,8 @@ export async function GET(request) {
     // 2. Build paginated query for transactions table
     let txQuery = supabaseAdmin
       .from('vouchers')
-      .select('id, voucher_code, profile_name, price, created_at, user_id, is_used', { count: 'exact' })
-      .not('user_id', 'is', null)
+      .select('id, voucher_code, profile_name, price, created_at, user_id, tx_ref, is_used', { count: 'exact' })
+      .or('user_id.not.is.null,tx_ref.not.is.null')
       .order('created_at', { ascending: false });
 
     if (startDate) {
