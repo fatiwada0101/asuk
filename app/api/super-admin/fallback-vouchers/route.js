@@ -15,10 +15,17 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const search = searchParams.get('search')?.trim();
 
+    // 0. Auto-expire any outdated vouchers (fire-and-forget — non-blocking on error)
+    try {
+      await supabaseAdmin.rpc('expire_outdated_vouchers');
+    } catch (expireErr) {
+      console.warn('expire_outdated_vouchers RPC error (non-fatal):', expireErr.message);
+    }
+
     // 1. Fetch full counts & summary (lightweight query for KPI cards)
     const { data: allRows, error: summaryErr } = await supabaseAdmin
       .from('fallback_vouchers')
-      .select('profile_name, plan_id, duration, is_used');
+      .select('profile_name, plan_id, duration, is_used, status');
 
     if (summaryErr) throw summaryErr;
 
@@ -26,11 +33,15 @@ export async function GET(request) {
     let totalCount = 0;
     let availableCount = 0;
     let usedCount = 0;
+    let expiredCount = 0;
 
     (allRows || []).forEach((v) => {
       totalCount++;
-      if (v.is_used) {
+      const vStatus = v.status || (v.is_used ? 'used' : 'available');
+      if (vStatus === 'used') {
         usedCount++;
+      } else if (vStatus === 'expired') {
+        expiredCount++;
       } else {
         availableCount++;
       }
@@ -44,15 +55,14 @@ export async function GET(request) {
           total: 0,
           available: 0,
           used: 0,
+          expired: 0,
         };
       }
       if (!summary[p].plan_id && v.plan_id) summary[p].plan_id = v.plan_id;
       summary[p].total++;
-      if (v.is_used) {
-        summary[p].used++;
-      } else {
-        summary[p].available++;
-      }
+      if (vStatus === 'used') summary[p].used++;
+      else if (vStatus === 'expired') summary[p].expired++;
+      else summary[p].available++;
     });
 
     // 2. Build filtered paginated query for ledger
@@ -65,9 +75,12 @@ export async function GET(request) {
     }
 
     if (status === 'available') {
-      query = query.eq('is_used', false);
+      // Available = not used AND not expired
+      query = query.eq('is_used', false).neq('status', 'expired');
     } else if (status === 'used') {
       query = query.eq('is_used', true);
+    } else if (status === 'expired') {
+      query = query.eq('status', 'expired').eq('is_used', false);
     }
 
     if (search) {
@@ -99,6 +112,7 @@ export async function GET(request) {
         total: totalCount,
         available: availableCount,
         used: usedCount,
+        expired: expiredCount,
       },
     });
   } catch (error) {
@@ -275,20 +289,36 @@ export async function DELETE(request) {
   try {
     const { id, profile_name, clear_unused, prune_used } = await request.json();
 
-    // Maintenance action: Prune used vouchers
+    // Maintenance action: Prune used + expired vouchers
     if (prune_used) {
-      let query = supabaseAdmin
+      let usedQuery = supabaseAdmin
         .from('fallback_vouchers')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('is_used', true);
 
+      let expiredQuery = supabaseAdmin
+        .from('fallback_vouchers')
+        .delete({ count: 'exact' })
+        .eq('status', 'expired')
+        .eq('is_used', false);
+
       if (profile_name && profile_name !== 'all') {
-        query = query.eq('profile_name', profile_name);
+        usedQuery = usedQuery.eq('profile_name', profile_name);
+        expiredQuery = expiredQuery.eq('profile_name', profile_name);
       }
 
-      const { error } = await query;
-      if (error) throw error;
-      return NextResponse.json({ success: true, pruned: true });
+      const [{ count: usedPruned, error: err1 }, { count: expiredPruned, error: err2 }] =
+        await Promise.all([usedQuery, expiredQuery]);
+
+      if (err1) throw err1;
+      if (err2) throw err2;
+
+      return NextResponse.json({
+        success: true,
+        pruned: (usedPruned || 0) + (expiredPruned || 0),
+        used_pruned: usedPruned || 0,
+        expired_pruned: expiredPruned || 0,
+      });
     }
 
     if (id) {

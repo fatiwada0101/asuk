@@ -476,7 +476,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     vouchers: [],
     pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
     summary: [],
-    stats: { total: 0, available: 0, used: 0 }
+    stats: { total: 0, available: 0, used: 0, expired: 0 }
   });
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -771,6 +771,19 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
           </div>
           <div className="sa-kpi-val">{data.stats.used}</div>
           <div className="sa-kpi-sub">Total fallback codes used</div>
+        </div>
+
+        <div className="sa-kpi-card">
+          <div className="sa-kpi-top">
+            <span className="sa-kpi-label">Expired</span>
+            {data.stats.expired > 0 && (
+              <span className="sa-badge sa-badge-warn">Stale</span>
+            )}
+          </div>
+          <div className="sa-kpi-val" style={{ color: data.stats.expired > 0 ? '#EF4444' : '#8E8E93' }}>
+            {data.stats.expired}
+          </div>
+          <div className="sa-kpi-sub">Past validity — prune to clean up</div>
         </div>
 
         <div className="sa-kpi-card">
@@ -1190,7 +1203,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
           <button
             type="button"
             className="sa-btn-outline"
-            disabled={pruning || data.stats.used === 0}
+            disabled={pruning || (data.stats.used === 0 && data.stats.expired === 0)}
             onClick={handlePruneUsed}
             style={{
               padding: '8px 16px',
@@ -1201,9 +1214,9 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
               alignItems: 'center',
               gap: 6
             }}
-            title="Prune all used vouchers from fallback table"
+            title="Prune all used and expired vouchers from fallback table"
           >
-            {pruning ? '⏳ Pruning...' : `🧹 Prune ${data.stats.used} Used Vouchers`}
+            {pruning ? '⏳ Pruning...' : `🧹 Prune ${data.stats.used} Used + ${data.stats.expired} Expired`}
           </button>
         </div>
       </div>
@@ -1271,6 +1284,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
               <option value="all">All Status</option>
               <option value="available">Available Only</option>
               <option value="used">Used Only</option>
+              <option value="expired">Expired Only</option>
             </select>
 
             {/* Rows per page */}
@@ -1329,8 +1343,16 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                       </td>
                       <td>{v.duration}</td>
                       <td>
-                        <span className={`sa-badge ${v.is_used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
-                          {v.is_used ? 'Used' : 'Available'}
+                        <span className={
+                          `sa-badge ${
+                            (v.status === 'expired' || (!v.is_used && v.status === 'expired'))
+                              ? 'sa-badge-danger'
+                              : v.is_used
+                              ? 'sa-badge-muted'
+                              : 'sa-badge-success'
+                          }`
+                        }>
+                          {v.status === 'expired' ? 'Expired' : v.is_used ? 'Used' : 'Available'}
                         </span>
                       </td>
                       <td>{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
