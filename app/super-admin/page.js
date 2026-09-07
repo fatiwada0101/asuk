@@ -26,6 +26,7 @@ import {
   ThermometerIcon,
 } from '../components/Icons';
 import MikroTikSetupGuide from '../components/MikroTikSetupGuide';
+import MikroTikDiagnosticsAndLogs from '../components/MikroTikDiagnosticsAndLogs';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: TrendingUpIcon },
@@ -1811,11 +1812,11 @@ export default function SuperAdminPage() {
       setTestResult(data);
       if (!silent) {
         if (data.connected) showToast('✅ Router Connected!');
-        else showToast('⚠️ Connection failed');
+        else showToast(data.error ? `⚠️ ${data.error}` : '⚠️ Connection failed');
       }
     } catch (err) {
       setTestResult({ connected: false, error: err.message });
-      if (!silent) showToast('Network error');
+      if (!silent) showToast(`Network error: ${err.message}`);
     } finally { setTestLoading(false); }
   }, [adminHeaders]);
 
@@ -3121,45 +3122,14 @@ export default function SuperAdminPage() {
               />
             )}
 
-            {testResult && (
-              <div className="sa-glass-card" style={{ marginTop: 24 }}>
-                <div className="sa-card-header">
-                  <div><h3 className="sa-card-title">Diagnostics</h3><p className="sa-card-sub"><code>/rest/system/resource</code></p></div>
-                  <span className={`sa-badge ${testResult.connected ? 'sa-badge-success' : 'sa-badge-danger'}`}>
-                    {testResult.connected ? '🟢 ONLINE' : '🔴 OFFLINE'}
-                  </span>
-                </div>
-                {testResult.connected ? (
-                  <div className="sa-diag-grid">
-                    <div className="sa-diag-item"><span className="sa-diag-label">Model</span><strong className="sa-diag-val">{testResult.router?.model}</strong></div>
-                    <div className="sa-diag-item"><span className="sa-diag-label">RouterOS</span><strong className="sa-diag-val">{testResult.router?.version}</strong></div>
-                    <div className="sa-diag-item"><span className="sa-diag-label">Uptime</span><strong className="sa-diag-val">{testResult.router?.uptime}</strong></div>
-                    <div className="sa-diag-item"><span className="sa-diag-label">CPU</span><strong className="sa-diag-val">{testResult.router?.cpuLoad}</strong></div>
-                    <div className="sa-diag-item" style={{ gridColumn: '1 / -1' }}>
-                      <span className="sa-diag-label">Hotspot Profiles</span>
-                      <div className="sa-profiles-tag-wrap">
-                        {testResult.profiles?.length > 0 ? testResult.profiles.map(p => (
-                          <span key={p} className="sa-profile-pill">{p}</span>
-                        )) : <span className="sa-color-muted">default</span>}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="sa-offline-troubleshoot-box">
-                    <div className="sa-error-alert">{testResult.error}</div>
-                    <div className="sa-troubleshoot-steps">
-                      <strong>Troubleshooting:</strong>
-                      <ol>
-                        <li>Confirm router is powered and accessible.</li>
-                        <li>Enable REST API: <code>/ip service enable www-ssl</code></li>
-                        <li>For HTTP, uncheck SSL and set port to 80.</li>
-                        <li>Verify credentials.</li>
-                      </ol>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ═══ MIKROTIK DIAGNOSTICS & CONNECTION LOGS ═══ */}
+            <MikroTikDiagnosticsAndLogs
+              testResult={testResult}
+              testLoading={testLoading}
+              onTest={() => handleTestMikrotik(false)}
+              adminHeaders={adminHeaders}
+              showToast={showToast}
+            />
 
             {/* Hotspot Sharing Control */}
             <div className="sa-glass-card" style={{ marginTop: 24 }}>

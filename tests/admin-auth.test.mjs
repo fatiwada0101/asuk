@@ -12,6 +12,7 @@ import { GET as getHotspotProfiles, PUT as putHotspotProfile, PATCH as patchHots
 import { GET as getSystemHealth } from '@/app/api/mikrotik/system-health/route.js';
 import { GET as getTestConnection } from '@/app/api/mikrotik/test-connection/route.js';
 import { POST as postSyncHotspot } from '@/app/api/mikrotik/sync-hotspot/route.js';
+import { GET as getMikroTikLogs, POST as postMikroTikLogs } from '@/app/api/mikrotik/logs/route.js';
 
 test('validateAdminAuth - rejects requests without Authorization header', async () => {
   const req = new Request('http://localhost:3000/api/admin/stats');
@@ -121,4 +122,17 @@ test('Admin Route Handlers - reject unauthenticated POST /api/mikrotik/sync-hots
   });
   const res = await postSyncHotspot(req);
   assert.equal(res.status, 401, 'Must reject unauthenticated sync-hotspot request');
+});
+
+test('Admin Route Handlers - reject unauthenticated GET and POST /api/mikrotik/logs with 401', async () => {
+  const getReq = new Request('http://localhost:3000/api/mikrotik/logs');
+  const getRes = await getMikroTikLogs(getReq);
+  assert.equal(getRes.status, 401, 'Must reject unauthenticated GET /api/mikrotik/logs');
+
+  const postReq = new Request('http://localhost:3000/api/mikrotik/logs', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'clear' }),
+  });
+  const postRes = await postMikroTikLogs(postReq);
+  assert.equal(postRes.status, 401, 'Must reject unauthenticated POST /api/mikrotik/logs');
 });
