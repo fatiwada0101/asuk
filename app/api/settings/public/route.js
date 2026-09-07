@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { checkMikroTikHealth } from '@/lib/mikrotik';
+import { checkMikroTikHealth, isMikroTikConfigured } from '@/lib/mikrotik';
 
 export async function GET() {
   try {
     // Fetch settings and check router & fallback status concurrently
-    const [settingsRes, healthRes, fallbackRes] = await Promise.allSettled([
+    const [settingsRes, healthRes, fallbackRes, configuredRes] = await Promise.allSettled([
       supabaseAdmin
         .from('app_settings')
         .select('key, value')
@@ -13,17 +13,24 @@ export async function GET() {
       checkMikroTikHealth(2500),
       supabaseAdmin
         .from('fallback_vouchers')
-        .select('profile_name')
+        .select('profile_name, plan_id')
         .eq('is_used', false),
+      isMikroTikConfigured(),
     ]);
 
     const settings = settingsRes.status === 'fulfilled' && settingsRes.value.data ? settingsRes.value.data : [];
     const mikrotikOnline = healthRes.status === 'fulfilled' ? !!healthRes.value : false;
+    const mikrotikConfigured = configuredRes.status === 'fulfilled' ? !!configuredRes.value : false;
     const fallbackRows = fallbackRes.status === 'fulfilled' && fallbackRes.value.data ? fallbackRes.value.data : [];
 
     const fallbackCounts = {};
     for (const row of fallbackRows) {
-      fallbackCounts[row.profile_name] = (fallbackCounts[row.profile_name] || 0) + 1;
+      if (row.profile_name) {
+        fallbackCounts[row.profile_name] = (fallbackCounts[row.profile_name] || 0) + 1;
+      }
+      if (row.plan_id) {
+        fallbackCounts[row.plan_id] = (fallbackCounts[row.plan_id] || 0) + 1;
+      }
     }
     const hasFallbackVouchers = fallbackRows.length > 0;
 
@@ -58,6 +65,7 @@ export async function GET() {
       },
       branding,
       mikrotik: {
+        configured: mikrotikConfigured,
         online: mikrotikOnline,
         has_fallback_vouchers: hasFallbackVouchers,
         fallback_counts: fallbackCounts,

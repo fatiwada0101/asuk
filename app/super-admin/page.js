@@ -1690,7 +1690,7 @@ export default function SuperAdminPage() {
     try {
       const res = await fetch('/api/super-admin/settings', {
         method: 'POST', headers: adminHeaders(),
-        body: JSON.stringify({ key: 'mikrotik', value: mikrotikForm }),
+        body: JSON.stringify({ key: 'mikrotik', value: { ...mikrotikForm, configured: true } }),
       });
       if (res.ok) { showToast('✅ MikroTik settings saved!'); handleTestMikrotik(); }
       else showToast('❌ Failed to save');

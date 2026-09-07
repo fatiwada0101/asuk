@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { createHotspotUser } from '@/lib/mikrotik';
+import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik';
 
 /**
  * Helper: Generate a collision-resistant 6-char voucher code with retry
@@ -106,23 +106,57 @@ export async function POST(request) {
 
     const rateLimit = `${planUploadSpeed}/${planDownloadSpeed}`;
 
-    // 4. Provision on MikroTik router
-    let routerResult;
+    // 4. Provision voucher — MikroTik router API first, fallback voucher pool when API fails or router is unconfigured
+    let routerResult = null;
     let isFallback = false;
-    try {
-      routerResult = await createHotspotUser({
-        code,
-        password: code,
-        profile: plan_name,
-        limitUptime: uptimeMap[duration] || '1d',
-        comment: `User ${user_id} - ${plan_name} - ₦${numericPrice}`,
-        shared_users: planDevices,
-        rate_limit: rateLimit,
-      });
-    } catch (routerErr) {
-      console.error('MikroTik provisioning failed, checking fallback vouchers:', routerErr.message);
+    const mikrotikConfigured = await isMikroTikConfigured();
 
-      // Atomic, race-condition safe claim from fallback pool (strict plan isolation)
+    if (mikrotikConfigured) {
+      try {
+        routerResult = await createHotspotUser({
+          code,
+          password: code,
+          profile: plan_name,
+          limitUptime: uptimeMap[duration] || '1d',
+          comment: `User ${user_id} - ${plan_name} - ₦${numericPrice}`,
+          shared_users: planDevices,
+          rate_limit: rateLimit,
+        });
+      } catch (routerErr) {
+        console.warn('MikroTik router API failed during wallet purchase, checking fallback pool:', routerErr.message);
+
+        // Atomic, race-condition safe claim from fallback pool (strict plan isolation)
+        const { data: claimedRows, error: claimErr } = await supabaseAdmin
+          .rpc('claim_fallback_voucher', {
+            p_profile_name: plan_name,
+            p_plan_id: plan_id || null,
+            p_user_id: user_id,
+          });
+
+        if (!claimErr && claimedRows && claimedRows.length > 0) {
+          const claimed = claimedRows[0];
+          console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} after router API failure`);
+          code = claimed.voucher_code;
+          isFallback = true;
+        } else {
+          // Router failed AND no fallback vouchers — refund wallet!
+          console.error('No fallback voucher available, refunding wallet:', routerErr.message);
+          await supabaseAdmin.rpc('adjust_wallet_balance', {
+            p_user_id: user_id,
+            p_amount: numericPrice,
+            p_operation: 'add',
+          });
+
+          return NextResponse.json({
+            error: `Router connection failed: ${routerErr.message}. No fallback vouchers in reserve for "${plan_name}". Your wallet has been refunded.`,
+            router_error: true,
+          }, { status: 502 });
+        }
+      }
+    } else {
+      // Router is NOT configured in settings: trigger fallback pool directly
+      console.log(`MikroTik router is not configured in settings. Triggering fallback pool directly for "${plan_name}"`);
+
       const { data: claimedRows, error: claimErr } = await supabaseAdmin
         .rpc('claim_fallback_voucher', {
           p_profile_name: plan_name,
@@ -132,12 +166,12 @@ export async function POST(request) {
 
       if (!claimErr && claimedRows && claimedRows.length > 0) {
         const claimed = claimedRows[0];
-        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name}`);
+        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} (Router not configured)`);
         code = claimed.voucher_code;
         isFallback = true;
       } else {
-        // Router failed AND no fallback vouchers — refund wallet!
-        console.error('No fallback voucher available, refunding wallet:', routerErr.message);
+        // Router not configured AND no fallback vouchers available — refund wallet!
+        console.error('Router not configured and no fallback vouchers available, refunding wallet');
         await supabaseAdmin.rpc('adjust_wallet_balance', {
           p_user_id: user_id,
           p_amount: numericPrice,
@@ -145,7 +179,7 @@ export async function POST(request) {
         });
 
         return NextResponse.json({
-          error: `Router connection failed: ${routerErr.message}. No backup vouchers in stock for "${plan_name}". Your wallet has been refunded.`,
+          error: `The Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${plan_name}". Your wallet has been refunded.`,
           router_error: true,
         }, { status: 502 });
       }

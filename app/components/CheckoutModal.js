@@ -62,7 +62,13 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   }, [isOpen, plan, user, hasSufficientWallet]);
 
   const isRouterOnline = routerStatus.online;
-  const fallbackCount = plan ? (routerStatus.fallback_counts[plan.name] || 0) : 0;
+  const isRouterConfigured = routerStatus.configured !== false;
+  const fallbackCount = plan
+    ? Math.max(
+        Number(routerStatus.fallback_counts?.[plan.name] || 0),
+        Number(routerStatus.fallback_counts?.[plan.id] || 0)
+      )
+    : 0;
   const canPurchase = !routerStatus.loaded || isRouterOnline || fallbackCount > 0;
 
   if (!isOpen || !plan) return null;
@@ -90,7 +96,10 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   // Pay with user's wallet
   const handleWalletPayment = async () => {
     if (routerStatus.loaded && !canPurchase) {
-      setErrorMessage(`Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`);
+      const msg = !isRouterConfigured
+        ? `Purchases are temporarily unavailable because the Wi-Fi router is not configured and no backup vouchers are in stock for ${plan.name}.`
+        : `Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`;
+      setErrorMessage(msg);
       return;
     }
 
@@ -158,7 +167,10 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   // Pay online via Flutterwave
   const handleCardPayment = async () => {
     if (routerStatus.loaded && !canPurchase) {
-      setErrorMessage(`Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`);
+      const msg = !isRouterConfigured
+        ? `Purchases are temporarily unavailable because the Wi-Fi router is not configured and no backup vouchers are in stock for ${plan.name}.`
+        : `Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`;
+      setErrorMessage(msg);
       return;
     }
 
