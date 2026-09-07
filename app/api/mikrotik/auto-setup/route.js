@@ -447,17 +447,15 @@ export async function POST(request) {
       results.push({ step: 'NAT Masquerade', status: 'warn', detail: 'Could not add NAT rule: ' + e.message });
     }
 
-    // ═══ Step 8: Login Page Redirect — send captive portal to Vercel app ═══
+    // ═══ Step 8: Hotspot Login Portal — self-contained responsive voucher portal ═══
     try {
-      // Get the app URL for redirect
-      const appUrl = hotspotUrl.startsWith('http') ? hotspotUrl : `https://${hotspotUrl}`;
-
-      // Update hotspot server profiles to use our login URL
+      // Update hotspot server profiles to use standard hotspot directory and PAP/CHAP authentication
       const updatedServerProfiles = await mikrotikCall('/rest/ip/hotspot/profile') || [];
       for (const sp of updatedServerProfiles) {
         try {
           await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
             '.id': sp['.id'],
+            'dns-name': hotspotUrl,
             'login-by': 'cookie,http-chap,http-pap',
             'http-cookie-lifetime': '3d',
             'html-directory': 'hotspot',
@@ -465,46 +463,106 @@ export async function POST(request) {
         } catch {}
       }
 
-      // Configure Hotspot captive redirect: create a system script on router that writes login.html
-      const redirectHtml = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${appUrl}/login?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&dst=$(link-orig-esc)" /></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0a0a0a;color:#fff"><h2>Connecting to Wi-Fi Portal...</h2><p>Redirecting to login portal...</p><script>window.location.href="${appUrl}/login?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&dst=$(link-orig-esc)";</script></body></html>`;
+      // Self-contained, responsive, dark-mode Hotspot login page
+      // Runs directly on router port 80 (HTTP) — zero SSL errors, works offline!
+      const portalHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>${wifiSsid || 'Asuk Tech Wi-Fi'}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#09090b;color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:380px;background:#18181b;border:1px solid #27272a;border-radius:20px;padding:32px 24px;box-shadow:0 20px 40px rgba(0,0,0,0.6);text-align:center}
+.icon{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px;box-shadow:0 8px 24px rgba(16,185,129,0.3)}
+h1{font-size:22px;font-weight:800;margin-bottom:6px}
+p.sub{font-size:13px;color:#a1a1aa;margin-bottom:24px}
+.err{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;padding:10px 14px;border-radius:12px;font-size:13px;margin-bottom:18px}
+.lbl{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#a1a1aa;margin-bottom:8px;text-align:left}
+input[type="text"]{width:100%;padding:14px 16px;font-size:18px;font-weight:800;background:#27272a;border:1.5px solid #3f3f46;border-radius:14px;color:#fff;text-align:center;letter-spacing:2px;outline:none;font-family:monospace;text-transform:uppercase}
+input[type="text"]:focus{border-color:#10b981}
+.btn{width:100%;padding:15px;margin-top:18px;font-size:15px;font-weight:800;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:14px;cursor:pointer;box-shadow:0 4px 20px rgba(16,185,129,0.35)}
+.buy{margin-top:24px;padding-top:18px;border-top:1px solid #27272a}
+.buy-txt{font-size:12px;color:#71717a;margin-bottom:10px}
+.btn-buy{display:inline-block;color:#a78bfa;font-size:13.5px;font-weight:700;text-decoration:none;padding:10px 18px;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);border-radius:12px}
+.info{margin-top:18px;font-size:11px;color:#52525b}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="icon">&#9889;</div>
+<h1>${wifiSsid || 'Asuk Tech Wi-Fi'}</h1>
+<p class="sub">Enter your voucher code to connect</p>
+$(if error)<div class="err">&#9888; $(error)</div>$(endif)
+<form name="login" action="$(link-login-only)" method="post">
+<input type="hidden" name="dst" value="$(link-orig)" />
+<input type="hidden" name="popup" value="true" />
+<label class="lbl">Voucher Code</label>
+<input type="text" id="code" name="username" value="$(username)" placeholder="ASUK-XXXX" autofocus required autocomplete="off" />
+<input type="hidden" name="password" id="pass" value="$(username)" />
+<button type="submit" class="btn">&#9889; Connect to Internet</button>
+</form>
+<div class="buy">
+<div class="buy-txt">Don't have an active voucher?</div>
+<a href="https://asuk.vercel.app/packages" class="btn-buy">&#128722; Buy a Data Plan Online &rarr;</a>
+</div>
+<div class="info">MAC: $(mac) &bull; IP: $(ip)</div>
+</div>
+<script>
+var c=document.getElementById('code'),p=document.getElementById('pass');
+c.addEventListener('input',function(){p.value=c.value.trim()});
+if(c.value&&c.value.length>2&&!'$(error)'){p.value=c.value.trim();document.forms['login'].submit()}
+</script>
+</body>
+</html>`;
 
-      const scriptSource = `:do { /file print file="hotspot/login.html"; :delay 1s; /file set [find name="hotspot/login.html"] contents="${redirectHtml.replace(/"/g, '\\"')}"; } on-error={}`;
+      let portalInstalled = false;
 
-      let scriptInstalled = false;
+      // Method A: Direct REST API file update (Fast & reliable on RouterOS v7)
       try {
-        const scripts = await mikrotikCall('/rest/system/script') || [];
-        const scriptName = 'asuk-hotspot-redirect';
-        const existingScript = scripts.find(s => s.name === scriptName);
-
-        if (existingScript) {
-          await mikrotikCall('/rest/system/script/set', 'POST', {
-            '.id': existingScript['.id'],
-            source: scriptSource,
+        const files = await mikrotikCall('/rest/file') || [];
+        const loginFile = Array.isArray(files) && files.find(f => f.name === 'hotspot/login.html');
+        if (loginFile && loginFile['.id']) {
+          const patchRes = await mikrotikCall(`/rest/file/${encodeURIComponent(loginFile['.id'])}`, 'PATCH', {
+            contents: portalHtml,
           });
-        } else {
-          await mikrotikCall('/rest/system/script/add', 'POST', {
-            name: scriptName,
-            source: scriptSource,
-            policy: 'ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon',
-          });
+          if (patchRes && (patchRes.ok || patchRes.status === 200)) {
+            portalInstalled = true;
+          }
         }
-
-        // Run the script to write login.html immediately
-        await mikrotikCall('/rest/system/script/run', 'POST', {
-          number: scriptName,
-        });
-        scriptInstalled = true;
       } catch {}
 
+      // Method B: System script fallback
+      if (!portalInstalled) {
+        try {
+          const scriptSource = `:do { /file print file="hotspot/login.html"; :delay 1s; /file set [find name="hotspot/login.html"] contents="${portalHtml.replace(/"/g, '\\"')}"; } on-error={}`;
+          const scripts = await mikrotikCall('/rest/system/script') || [];
+          const scriptName = 'asuk-hotspot-portal';
+          const existingScript = Array.isArray(scripts) && scripts.find(s => s.name === scriptName);
+          if (existingScript) {
+            await mikrotikCall('/rest/system/script/set', 'POST', { '.id': existingScript['.id'], source: scriptSource });
+          } else {
+            await mikrotikCall('/rest/system/script/add', 'POST', {
+              name: scriptName,
+              source: scriptSource,
+              policy: 'ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon',
+            });
+          }
+          await mikrotikCall('/rest/system/script/run', 'POST', { number: scriptName });
+          portalInstalled = true;
+        } catch {}
+      }
+
       results.push({
-        step: 'Captive Portal Redirect',
+        step: 'Hotspot Login Portal UI',
         status: 'ok',
-        detail: scriptInstalled
-          ? `Auto-redirect active: all devices connecting to any AP will automatically open ${appUrl}/login`
-          : `Captive portal domain set to ${hotspotUrl} (${appUrl}/login)`,
+        detail: portalInstalled
+          ? 'Modern captive portal installed directly on router — loads offline with instant voucher entry'
+          : 'Hotspot server profile configured for local voucher authentication',
       });
     } catch (e) {
-      results.push({ step: 'Captive Portal Redirect', status: 'info', detail: 'Captive portal profile ready: ' + e.message });
+      results.push({ step: 'Hotspot Login Portal UI', status: 'info', detail: 'Portal profile ready: ' + e.message });
     }
 
 
