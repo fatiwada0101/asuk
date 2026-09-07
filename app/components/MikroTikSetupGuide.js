@@ -382,16 +382,33 @@ export default function MikroTikSetupGuide({ mikrotikForm = {}, onSyncRouter, is
 
             {expandedCloudStep === 2 && (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #ECEEF2', fontSize: '13.5px', color: '#4A4A52', lineHeight: 1.6 }}>
-                <p>Default MikroTik firewalls block incoming connections from the WAN internet. You must allow port 443:</p>
+                <p>Default MikroTik firewalls block incoming connections from the WAN internet, and RouterOS requires an SSL certificate for port 443:</p>
                 <div style={{ background: '#F8F9FA', padding: 12, borderRadius: 10, border: '1px solid #ECEEF2', marginTop: 8 }}>
-                  <strong>Quick WinBox Terminal Command (Recommended):</strong>
+                  <strong>1. Allow Port 443 in Firewall (WinBox Terminal):</strong>
                   <pre style={{ margin: '6px 0 0', background: '#18181B', color: '#F4F4F5', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
                     /ip firewall filter add chain=input protocol=tcp dst-port=443 action=accept comment=&quot;Allow REST API for Vercel&quot; place-before=1
                   </pre>
                 </div>
-                <p style={{ marginTop: 8, fontSize: '12.5px', color: '#71717A' }}>
-                  Or manually in WinBox: <code>IP -&gt; Firewall -&gt; Filter Rules -&gt; + (Add)</code>. Set <code>Chain: input</code>, <code>Protocol: tcp</code>, <code>Dst. Port: 443</code>, <code>Action: accept</code>, and drag the rule to the very top.
-                </p>
+                <div style={{ background: '#F8F9FA', padding: 12, borderRadius: 10, border: '1px solid #ECEEF2', marginTop: 10 }}>
+                  <strong>2. Ensure www-ssl Service &amp; SSL Certificate are Active (WinBox Terminal):</strong>
+                  <pre style={{ margin: '6px 0 0', background: '#18181B', color: '#10B981', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
+                    /certificate enable-ssl-certificate{'\n'}
+                    /ip service set www-ssl disabled=no port=443
+                  </pre>
+                  <span style={{ fontSize: '11.5px', color: '#71717A', marginTop: 4, display: 'block' }}>
+                    Note: If RouterOS says command not found, generate a self-signed cert: <code>/certificate add name=web-ssl common-name={mikrotikForm?.ip || 'router'} days-valid=3650</code> then <code>/certificate sign web-ssl</code> and <code>/ip service set www-ssl certificate=web-ssl disabled=no</code>.
+                  </span>
+                </div>
+                <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: 12, borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.25)', marginTop: 10 }}>
+                  <strong style={{ color: '#1D4ED8' }}>💡 Easier Alternative: Use Port 80 (HTTP) without SSL certificates:</strong>
+                  <pre style={{ margin: '6px 0 0', background: '#18181B', color: '#93C5FD', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
+                    /ip service set www disabled=no port=80{'\n'}
+                    /ip firewall filter add chain=input protocol=tcp dst-port=80 action=accept comment=&quot;Allow HTTP REST API&quot; place-before=1
+                  </pre>
+                  <span style={{ fontSize: '11.5px', color: '#1E40AF', marginTop: 4, display: 'block' }}>
+                    Then in Asuk Tech settings: set <strong>Port</strong> to <code>80</code> and <strong>uncheck</strong> &ldquo;Use SSL / HTTPS&rdquo;.
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -498,18 +515,27 @@ export default function MikroTikSetupGuide({ mikrotikForm = {}, onSyncRouter, is
             {expandedCloudStep === 4 && (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #ECEEF2', fontSize: '13.5px', color: '#4A4A52', lineHeight: 1.6 }}>
                 <p>
-                  If your internet provider does not provide a public IP (common on 4G/5G mobile data), you can use a <strong>100% free Cloudflare Tunnel</strong>:
+                  If your internet provider uses <strong>CGNAT</strong> (common on MTN, Airtel, Starlink, or 4G LTE modems where WAN IP is private), direct incoming ports are blocked by the carrier. You can connect in 1 minute using <strong>ngrok</strong> or <strong>Cloudflare Tunnel</strong>:
                 </p>
-                <ol style={{ paddingLeft: 20, marginTop: 8 }}>
-                  <li>Install <code>cloudflared</code> on any PC or Raspberry Pi connected to the router.</li>
-                  <li>Run:
-                    <pre style={{ margin: '6px 0', background: '#18181B', color: '#10B981', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
-                      cloudflared tunnel --url https://192.168.88.1:443 --no-tls-verify
-                    </pre>
-                  </li>
-                  <li>Cloudflare gives you a free global HTTPS URL (e.g. <code>https://asuk-router.trycloudflare.com</code>).</li>
-                  <li>Paste that domain into <strong>Router IP / Host</strong> in Super Admin! No port forwarding needed!</li>
-                </ol>
+                <div style={{ background: '#F8F9FA', padding: 12, borderRadius: 10, border: '1px solid #ECEEF2', marginTop: 8 }}>
+                  <strong>Option A: Instant ngrok Tunnel (Fastest — 1 minute):</strong>
+                  <ol style={{ paddingLeft: 20, marginTop: 6, fontSize: '12.5px' }}>
+                    <li>Download free <strong>ngrok</strong> on your PC connected to the router.</li>
+                    <li>In terminal / Command Prompt, run:
+                      <pre style={{ margin: '4px 0', background: '#18181B', color: '#10B981', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
+                        ngrok http 192.168.88.1:80
+                      </pre>
+                    </li>
+                    <li>ngrok gives you a public URL (e.g. <code>https://abc-xyz.ngrok-free.app</code>).</li>
+                    <li>Paste that host (<code>abc-xyz.ngrok-free.app</code>) into <strong>Router IP / Host</strong> above, set Port to <code>443</code>, Use SSL checked, and click Save!</li>
+                  </ol>
+                </div>
+                <div style={{ background: '#F8F9FA', padding: 12, borderRadius: 10, border: '1px solid #ECEEF2', marginTop: 10 }}>
+                  <strong>Option B: Cloudflare Tunnel (Permanent):</strong>
+                  <pre style={{ margin: '6px 0', background: '#18181B', color: '#10B981', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
+                    cloudflared tunnel --url https://192.168.88.1:443 --no-tls-verify
+                  </pre>
+                </div>
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse, invalidateAdminCredsCache } from '@/lib/admin-auth';
+import { sanitizeMikroTikConfig } from '@/lib/mikrotik';
 
 // GET — fetch all settings
 export async function GET(request) {
@@ -37,11 +38,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing key or value' }, { status: 400 });
     }
 
+    let finalValue = value;
+    if (key === 'mikrotik' && typeof value === 'object' && value !== null) {
+      finalValue = sanitizeMikroTikConfig(value);
+    }
+
     const { error } = await supabaseAdmin
       .from('app_settings')
       .upsert({
         key,
-        value,
+        value: finalValue,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'key' });
 

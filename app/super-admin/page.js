@@ -1843,9 +1843,37 @@ export default function SuperAdminPage() {
     actionLockRef.current = true;
     setActionBusy(true);
     try {
+      let cleanIp = (mikrotikForm.ip || '').trim();
+      let cleanPort = mikrotikForm.port || '443';
+      let useSsl = mikrotikForm.use_ssl;
+
+      if (/^https?:\/\//i.test(cleanIp)) {
+        if (cleanIp.toLowerCase().startsWith('http://')) useSsl = false;
+        if (cleanIp.toLowerCase().startsWith('https://')) useSsl = true;
+        cleanIp = cleanIp.replace(/^https?:\/\//i, '');
+      }
+      cleanIp = cleanIp.replace(/\/.*$/, '').trim();
+      if (cleanIp.includes(':')) {
+        const colonIdx = cleanIp.lastIndexOf(':');
+        const pPort = cleanIp.substring(colonIdx + 1).trim();
+        if (/^\d+$/.test(pPort)) {
+          cleanIp = cleanIp.substring(0, colonIdx).trim();
+          cleanPort = pPort;
+        }
+      }
+
+      const updatedForm = {
+        ...mikrotikForm,
+        ip: cleanIp,
+        port: cleanPort,
+        use_ssl: useSsl,
+        configured: true,
+      };
+      setMikrotikForm(updatedForm);
+
       const res = await fetch('/api/super-admin/settings', {
         method: 'POST', headers: adminHeaders(),
-        body: JSON.stringify({ key: 'mikrotik', value: { ...mikrotikForm, configured: true } }),
+        body: JSON.stringify({ key: 'mikrotik', value: updatedForm }),
       });
       if (res.ok) { showToast('✅ MikroTik settings saved!'); handleTestMikrotik(); }
       else showToast('❌ Failed to save');

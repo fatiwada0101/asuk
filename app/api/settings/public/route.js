@@ -86,6 +86,7 @@ export async function GET() {
       flutterwave: { publicKey: '', enabled: false },
       branding: { app_name: 'Asuk Tech', logo_url: '', theme: 'violet' },
       mikrotik: {
+        configured: false,
         online: false,
         has_fallback_vouchers: false,
         fallback_counts: {},
