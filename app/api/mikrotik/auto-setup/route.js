@@ -60,9 +60,34 @@ export async function POST(request) {
       results.push({ step: 'DNS & Portal Resolution', status: 'warn', detail: e.message });
     }
 
-    // ═══ Step 2: Configure WiFi SSID ═══
+    // ═══ Step 2: Configure WiFi SSID & Open Security (No Password) ═══
     try {
-      // Try RouterOS v7 new WiFi first (/interface/wifi)
+      // 1. Ensure open security profile exists (mode=none, no WPA2 password)
+      try {
+        const secProfiles = await mikrotikCall('/rest/interface/wireless/security-profile') || [];
+        const defaultProfile = secProfiles.find(p => p.name === 'default');
+        if (defaultProfile) {
+          try {
+            await mikrotikCall('/rest/interface/wireless/security-profile/set', 'POST', {
+              '.id': defaultProfile['.id'],
+              mode: 'none',
+              'authentication-types': '',
+              'wpa-pre-shared-key': '',
+              'wpa2-pre-shared-key': '',
+            });
+          } catch {}
+        }
+        if (!secProfiles.some(p => p.name === 'asuk-open')) {
+          try {
+            await mikrotikCall('/rest/interface/wireless/security-profile/add', 'POST', {
+              name: 'asuk-open',
+              mode: 'none',
+            });
+          } catch {}
+        }
+      } catch {}
+
+      // 2. Try RouterOS v7 new WiFi first (/interface/wifi)
       let wifiInterfaces = [];
       try {
         wifiInterfaces = await mikrotikCall('/rest/interface/wifi');
@@ -75,10 +100,19 @@ export async function POST(request) {
             await mikrotikCall('/rest/interface/wifi/set', 'POST', {
               '.id': iface['.id'],
               'configuration.ssid': wifiSsid,
+              'security.authentication-types': '',
+              'security.passphrase': '',
             });
-          } catch {}
+          } catch {
+            try {
+              await mikrotikCall('/rest/interface/wifi/set', 'POST', {
+                '.id': iface['.id'],
+                'configuration.ssid': wifiSsid,
+              });
+            } catch {}
+          }
         }
-        results.push({ step: 'WiFi SSID', status: 'ok', detail: `"${wifiSsid}" set on ${wifiInterfaces.length} WiFi interface(s) (new WiFi)` });
+        results.push({ step: 'WiFi SSID & Open Security', status: 'ok', detail: `"${wifiSsid}" set as OPEN (no password) on ${wifiInterfaces.length} WiFi interface(s)` });
       } else {
         // Try legacy wireless (/interface/wireless)
         let wirelessInterfaces = [];
@@ -92,16 +126,25 @@ export async function POST(request) {
               await mikrotikCall('/rest/interface/wireless/set', 'POST', {
                 '.id': iface['.id'],
                 ssid: wifiSsid,
+                'security-profile': 'asuk-open',
               });
-            } catch {}
+            } catch {
+              try {
+                await mikrotikCall('/rest/interface/wireless/set', 'POST', {
+                  '.id': iface['.id'],
+                  ssid: wifiSsid,
+                  'security-profile': 'default',
+                });
+              } catch {}
+            }
           }
-          results.push({ step: 'WiFi SSID', status: 'ok', detail: `"${wifiSsid}" set on ${wirelessInterfaces.length} wireless interface(s)` });
+          results.push({ step: 'WiFi SSID & Open Security', status: 'ok', detail: `"${wifiSsid}" set as OPEN (no password) on ${wirelessInterfaces.length} wireless interface(s)` });
         } else {
-          results.push({ step: 'WiFi SSID', status: 'info', detail: 'No internal WiFi found — external Access Points will broadcast their own SSID' });
+          results.push({ step: 'WiFi SSID', status: 'info', detail: 'No internal WiFi found — external Access Points should have security set to OPEN (no password)' });
         }
       }
     } catch (e) {
-      results.push({ step: 'WiFi SSID', status: 'warn', detail: 'Could not auto-detect WiFi interface: ' + e.message });
+      results.push({ step: 'WiFi SSID & Security', status: 'warn', detail: 'Could not configure WiFi: ' + e.message });
     }
 
     // ═══ Step 3: Ensure hotspot server profile exists with DNS name ═══
