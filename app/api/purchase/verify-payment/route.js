@@ -12,6 +12,35 @@ export async function POST(request) {
 
     const numericPrice = Number(price);
 
+    // ── IDEMPOTENCY GUARD: prevent double-issue if same tx_ref is submitted twice ──
+    // (can happen via webhook retry, network error, or rapid double-submit)
+    // We use tx_ref (our own unique reference) rather than transaction_id (Flutterwave's numeric ID)
+    if (tx_ref) {
+      try {
+        const { data: existing } = await supabaseAdmin
+          .from('vouchers')
+          .select('voucher_code, profile_name, price')
+          .eq('tx_ref', tx_ref)
+          .maybeSingle();
+
+        if (existing) {
+          console.log(`Idempotency hit: tx_ref ${tx_ref} already issued voucher ${existing.voucher_code}`);
+          return NextResponse.json({
+            success: true,
+            voucher_code: existing.voucher_code,
+            plan: existing.profile_name,
+            price: existing.price,
+            is_fallback: false,
+            idempotent: true,
+          });
+        }
+      } catch (e) {
+        // Non-fatal — proceed with normal flow if check fails
+        console.warn('Idempotency check failed (non-fatal):', e.message);
+      }
+    }
+
+
     // 1. Fetch plan details for devices & speed
     let planDevices = 1;
     let planUploadSpeed = '12M';
@@ -189,7 +218,7 @@ export async function POST(request) {
       }
     }
 
-    // 6. Record successful voucher in Supabase
+    // 6. Record successful voucher in Supabase (include tx_ref for idempotency)
     await supabaseAdmin
       .from('vouchers')
       .insert({
@@ -197,6 +226,7 @@ export async function POST(request) {
         voucher_code: code,
         profile_name: plan_name,
         price: numericPrice,
+        tx_ref: tx_ref || null,
         is_used: false,
       });
 

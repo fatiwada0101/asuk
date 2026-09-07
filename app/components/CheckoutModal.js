@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
@@ -19,6 +19,8 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const [voucherData, setVoucherData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [flwConfig, setFlwConfig] = useState({ publicKey: '', enabled: false });
+  // Mutex ref — prevents double-click race condition on pay buttons
+  const processingRef = useRef(false);
   const [routerStatus, setRouterStatus] = useState({
     loaded: false,
     online: true,
@@ -58,6 +60,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
       setVoucherData(null);
       setCopied(false);
       setPaymentMethod(user && hasSufficientWallet ? 'wallet' : 'card');
+      processingRef.current = false; // reset mutex when modal reopens
     }
   }, [isOpen, plan, user, hasSufficientWallet]);
 
@@ -95,20 +98,27 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
 
   // Pay with user's wallet
   const handleWalletPayment = async () => {
+    // Prevent double-click race condition
+    if (processingRef.current) return;
+    processingRef.current = true;
+
     if (routerStatus.loaded && !canPurchase) {
       const msg = !isRouterConfigured
         ? `Purchases are temporarily unavailable because the Wi-Fi router is not configured and no backup vouchers are in stock for ${plan.name}.`
         : `Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`;
       setErrorMessage(msg);
+      processingRef.current = false;
       return;
     }
 
     if (!user) {
       router.push('/auth');
+      processingRef.current = false;
       return;
     }
     if (!hasSufficientWallet) {
       router.push('/wallet');
+      processingRef.current = false;
       return;
     }
 
@@ -161,31 +171,40 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
     } catch (err) {
       setErrorMessage(err.message);
       setStep('error');
+      processingRef.current = false; // allow retry
     }
   };
 
   // Pay online via Flutterwave
   const handleCardPayment = async () => {
+    // Prevent double-click race condition
+    if (processingRef.current) return;
+    processingRef.current = true;
+
     if (routerStatus.loaded && !canPurchase) {
       const msg = !isRouterConfigured
         ? `Purchases are temporarily unavailable because the Wi-Fi router is not configured and no backup vouchers are in stock for ${plan.name}.`
         : `Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`;
       setErrorMessage(msg);
+      processingRef.current = false;
       return;
     }
 
     if (!guestEmail && !user) {
       setErrorMessage('Please provide an email address for your payment receipt.');
+      processingRef.current = false;
       return;
     }
 
     if (!flwConfig.publicKey) {
       setErrorMessage('Online card payment gateway is not yet configured. Please Sign In to pay with Wallet balance or configure Flutterwave in Super Admin.');
+      processingRef.current = false;
       return;
     }
 
     if (typeof window.FlutterwaveCheckout === 'undefined') {
       setErrorMessage('Payment gateway is loading. Please check your internet connection.');
+      processingRef.current = false;
       return;
     }
 
@@ -260,13 +279,17 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
           } catch (err) {
             setErrorMessage(err.message);
             setStep('error');
+            processingRef.current = false; // allow retry
           }
         } else {
           setErrorMessage('Payment was not completed. Please try again.');
           setStep('error');
+          processingRef.current = false; // allow retry
         }
       },
       onclose: function () {
+        // Reset mutex when Flutterwave popup is closed without payment
+        processingRef.current = false;
         setStep('review');
       },
     });
@@ -456,16 +479,16 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
                 </button>
               ) : paymentMethod === 'wallet' ? (
                 hasSufficientWallet ? (
-                  <button className="btn btn-primary btn-block checkout-pay-btn" onClick={handleWalletPayment}>
+                  <button className="btn btn-primary btn-block checkout-pay-btn" onClick={handleWalletPayment} disabled={step === 'processing'}>
                     Pay {formatPrice(plan.price)} from Wallet
                   </button>
                 ) : (
-                  <button className="btn btn-primary btn-block checkout-pay-btn" onClick={() => router.push('/wallet')}>
+                  <button className="btn btn-primary btn-block checkout-pay-btn" onClick={() => router.push('/wallet')} disabled={step === 'processing'}>
                     Top Up Wallet ({formatPrice(walletBalance)})
                   </button>
                 )
               ) : (
-                <button className="btn btn-primary btn-block checkout-pay-btn" onClick={handleCardPayment}>
+                <button className="btn btn-primary btn-block checkout-pay-btn" onClick={handleCardPayment} disabled={step === 'processing'}>
                   Pay {formatPrice(plan.price)} via Card / Transfer
                 </button>
               )}

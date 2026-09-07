@@ -57,6 +57,36 @@ export async function POST(request) {
       }, { status: 402 });
     }
 
+    // ── IDEMPOTENCY GUARD: prevent double-deduction from rapid double-click ──
+    // If this user purchased the exact same plan in the last 15 seconds, return
+    // the existing voucher instead of charging again.
+    try {
+      const windowStart = new Date(Date.now() - 15000).toISOString();
+      const { data: recentPurchase } = await supabaseAdmin
+        .from('vouchers')
+        .select('voucher_code, profile_name, price')
+        .eq('user_id', user_id)
+        .eq('profile_name', plan_name)
+        .gte('created_at', windowStart)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentPurchase) {
+        console.log(`Idempotency hit (wallet): user ${user_id} already bought "${plan_name}" within last 15s — returning existing voucher`);
+        return NextResponse.json({
+          success: true,
+          voucher_code: recentPurchase.voucher_code,
+          plan: recentPurchase.profile_name,
+          price: recentPurchase.price,
+          is_fallback: false,
+          idempotent: true,
+        });
+      }
+    } catch (e) {
+      console.warn('Wallet idempotency check failed (non-fatal):', e.message);
+    }
+
     // 1. Fetch plan details + global hotspot settings in parallel
     const [planResult, hotspotSettings] = await Promise.all([
       plan_id

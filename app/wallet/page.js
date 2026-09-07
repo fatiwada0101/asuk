@@ -140,6 +140,8 @@ export default function WalletPage() {
   }, [user]);
 
   const handleFundWallet = async () => {
+    if (loading) return;
+
     const num = parseFloat(amountVal);
     if (!num || num < 100) {
       showToast('Minimum deposit amount is ₦100');
