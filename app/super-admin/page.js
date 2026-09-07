@@ -699,7 +699,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
 
   // Housekeeping tool for thousands of vouchers: prune already redeemed vouchers
   const handlePruneUsed = async () => {
-    if (!confirm('Prune all redeemed/used fallback vouchers? This cleans old records to maintain peak performance and keep the pool lean.')) return;
+    if (!confirm('Prune all used & expired fallback vouchers? This removes redeemed codes and stale expired ones to keep the pool lean and performant.')) return;
     setPruning(true);
     try {
       const res = await fetch('/api/super-admin/fallback-vouchers', {
@@ -712,7 +712,10 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
       });
       const json = await res.json();
       if (res.ok) {
-        showToast(`🧹 Cleaned up ${json.pruned || 0} redeemed vouchers from reserve pool!`);
+        const detail = json.pruned > 0
+          ? `${json.used_pruned || 0} used + ${json.expired_pruned || 0} expired`
+          : '0';
+        showToast(`🧹 Cleaned up ${json.pruned || 0} vouchers (${detail}) from reserve pool!`);
         fetchData();
       } else {
         showToast(`❌ ${json.error || 'Failed to prune vouchers'}`);

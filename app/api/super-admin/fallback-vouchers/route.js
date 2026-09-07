@@ -75,8 +75,11 @@ export async function GET(request) {
     }
 
     if (status === 'available') {
-      // Available = not used AND not expired
-      query = query.eq('is_used', false).neq('status', 'expired');
+      // Available = not used AND status is either null (legacy) or 'available'
+      // Note: neq('status','expired') alone excludes NULLs in PostgreSQL,
+      // so we explicitly filter to is_used=false AND (status IS NULL OR status='available')
+      query = query.eq('is_used', false)
+        .or('status.is.null,status.eq.available');
     } else if (status === 'used') {
       query = query.eq('is_used', true);
     } else if (status === 'expired') {
@@ -204,6 +207,7 @@ export async function POST(request) {
             plan_id: plan_id || null,
             profile_name,
             duration,
+            status: 'available',
             is_used: false,
           });
         } catch (err) {
@@ -261,6 +265,7 @@ export async function POST(request) {
       plan_id: plan_id || null,
       profile_name,
       duration,
+      status: 'available',
       is_used: false,
     }));
 
@@ -336,7 +341,8 @@ export async function DELETE(request) {
         .from('fallback_vouchers')
         .delete()
         .eq('profile_name', profile_name)
-        .eq('is_used', false);
+        .eq('is_used', false)
+        .or('status.is.null,status.eq.available'); // Only clear genuinely available, NOT expired
 
       if (error) throw error;
       return NextResponse.json({ success: true });
