@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik';
+import { createOrQueueHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik';
 
 export async function POST(request) {
   try {
@@ -152,7 +152,7 @@ export async function POST(request) {
 
     if (mikrotikConfigured) {
       try {
-        routerResult = await createHotspotUser({
+        routerResult = await createOrQueueHotspotUser({
           code,
           password: code,
           profile: plan_name,

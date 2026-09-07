@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createHotspotUser } from '@/lib/mikrotik';
+import { createOrQueueHotspotUser } from '@/lib/mikrotik';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 
@@ -87,8 +87,8 @@ export async function POST(request) {
       const code = generateCode();
 
       try {
-        // Provision on router
-        const routerResult = await createHotspotUser({
+        // Provision on router (or queue for polling mode)
+        const routerResult = await createOrQueueHotspotUser({
           code,
           password: code,
           profile: profile !== 'default' ? profile : undefined,

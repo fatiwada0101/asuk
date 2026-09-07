@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
-import { createHotspotUser, isMikroTikOnline } from '@/lib/mikrotik';
+import { createOrQueueHotspotUser, isMikroTikOnline, getConnectionMode } from '@/lib/mikrotik';
 
 // GET — List fallback vouchers with server-side pagination, search, and plan summary
 export async function GET(request) {
@@ -168,8 +168,9 @@ export async function POST(request) {
       const downloadSpeed = body.download_speed || defaultDownloadSpeed;
       const rateLimit = `${uploadSpeed}/${downloadSpeed}`;
 
-      // 1. Check router connectivity
-      const online = await isMikroTikOnline(2500);
+      // 1. Check router connectivity (in polling mode, always "online" since tasks are queued)
+      const { mode: connMode } = await getConnectionMode();
+      const online = connMode === 'polling' ? true : await isMikroTikOnline(2500);
 
       const uptimeMap = {
         '1h': '1h', '3h': '3h', '24h': '1d',
@@ -189,7 +190,7 @@ export async function POST(request) {
 
         if (online) {
           try {
-            await createHotspotUser({
+            await createOrQueueHotspotUser({
               code,
               password: code,
               profile: profile_name,

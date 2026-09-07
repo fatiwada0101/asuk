@@ -1619,6 +1619,14 @@ export default function SuperAdminPage() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
+  // Polling Mode
+  const [pollingConfig, setPollingConfig] = useState({
+    enabled: false, secret: '', interval: 10,
+  });
+  const [pollingStatus, setPollingStatus] = useState(null);
+  const [pollingScriptCopied, setPollingScriptCopied] = useState(false);
+  const [pollingSecretCopied, setPollingSecretCopied] = useState(false);
+
   // Hotspot Sharing
   const [hotspotSettings, setHotspotSettings] = useState({
     sharing_enabled: false, default_devices: 1, default_upload_speed: '12M', default_download_speed: '12M',
@@ -1748,6 +1756,7 @@ export default function SuperAdminPage() {
         if (s.flutterwave) setFlutterwaveForm(prev => ({ ...prev, ...s.flutterwave }));
         if (s.branding) setBrandingForm(prev => ({ ...prev, ...s.branding }));
         if (s.hotspot_settings) setHotspotSettings(prev => ({ ...prev, ...s.hotspot_settings }));
+        if (s.polling_config) setPollingConfig(prev => ({ ...prev, ...s.polling_config }));
       }
 
       if (plansRes.ok) setPlans(await plansRes.json());
@@ -3158,6 +3167,303 @@ export default function SuperAdminPage() {
               adminHeaders={adminHeaders}
               showToast={showToast}
             />
+
+            {/* ═══ POLLING MODE (Router-Initiated Connection) ═══ */}
+            <div className="sa-glass-card" style={{ marginTop: 24 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">🔄 Connection Mode</h3>
+                  <p className="sa-card-sub">Choose how Vercel communicates with your MikroTik router</p>
+                </div>
+                <span className={`sa-badge ${pollingConfig.enabled ? 'sa-badge-warning' : 'sa-badge-success'}`}>
+                  {pollingConfig.enabled ? '🔄 Polling Mode' : '⚡ Direct Mode'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                <button
+                  className={`sa-btn-pill-small ${!pollingConfig.enabled ? 'sa-btn-primary' : 'sa-btn-outline'}`}
+                  onClick={async () => {
+                    const updated = { ...pollingConfig, enabled: false };
+                    setPollingConfig(updated);
+                    await fetch('/api/super-admin/settings', {
+                      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ key: 'polling_config', value: updated }),
+                    });
+                    showToast('⚡ Switched to Direct Mode');
+                  }}
+                >
+                  ⚡ Direct (API)
+                </button>
+                <button
+                  className={`sa-btn-pill-small ${pollingConfig.enabled ? 'sa-btn-primary' : 'sa-btn-outline'}`}
+                  onClick={async () => {
+                    // First check if the database table exists
+                    try {
+                      const setupRes = await fetch('/api/mikrotik/polling/setup', {
+                        method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                      });
+                      const setupData = await setupRes.json();
+                      if (setupData.needs_migration) {
+                        const ok = confirm(
+                          '⚠️ The polling database table needs to be created first.\n\n' +
+                          'Click OK to copy the SQL, then paste it in the Supabase SQL Editor.\n\n' +
+                          'Dashboard: ' + setupData.dashboard_url
+                        );
+                        if (ok) {
+                          navigator.clipboard.writeText(setupData.sql);
+                          window.open(setupData.dashboard_url, '_blank');
+                          showToast('📋 SQL copied! Paste it in the Supabase SQL Editor, click Run, then try enabling polling again.');
+                        }
+                        return;
+                      }
+                    } catch {}
+
+                    let secret = pollingConfig.secret;
+                    if (!secret) {
+                      secret = crypto.randomUUID();
+                    }
+                    const updated = { ...pollingConfig, enabled: true, secret };
+                    setPollingConfig(updated);
+                    await fetch('/api/super-admin/settings', {
+                      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ key: 'polling_config', value: updated }),
+                    });
+                    showToast('🔄 Switched to Polling Mode — paste the script into your router');
+                  }}
+                >
+                  🔄 Polling (Router-Initiated)
+                </button>
+              </div>
+
+              {!pollingConfig.enabled && (
+                <div style={{ padding: '12px 16px', background: 'rgba(34,197,94,0.08)', borderRadius: 10, border: '1px solid rgba(34,197,94,0.2)', fontSize: 13 }}>
+                  <strong>Direct Mode:</strong> Vercel connects directly to your router's REST API. Requires the router to be reachable from the internet (public IP or tunnel like ngrok).
+                </div>
+              )}
+
+              {pollingConfig.enabled && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ padding: '12px 16px', background: 'rgba(234,179,8,0.08)', borderRadius: 10, border: '1px solid rgba(234,179,8,0.2)', fontSize: 13, marginBottom: 16 }}>
+                    <strong>Polling Mode Active:</strong> Your router checks Vercel every {pollingConfig.interval}s for new voucher requests. Works behind any ISP (MTN, Starlink, etc.) — no public IP needed!
+                  </div>
+
+                  <div className="sa-form-grid-2" style={{ marginBottom: 16 }}>
+                    <div className="sa-field-box">
+                      <label>Polling Secret</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input value={pollingConfig.secret || ''} readOnly style={{ fontFamily: 'monospace', fontSize: 12 }} />
+                        <button className="sa-btn-pill-small" onClick={() => {
+                          navigator.clipboard.writeText(pollingConfig.secret);
+                          setPollingSecretCopied(true);
+                          setTimeout(() => setPollingSecretCopied(false), 2000);
+                        }}>{pollingSecretCopied ? '✅ Copied' : '📋 Copy'}</button>
+                        <button className="sa-btn-pill-small" onClick={async () => {
+                          const newSecret = crypto.randomUUID();
+                          const updated = { ...pollingConfig, secret: newSecret };
+                          setPollingConfig(updated);
+                          await fetch('/api/super-admin/settings', {
+                            method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: 'polling_config', value: updated }),
+                          });
+                          showToast('🔑 New secret generated — re-paste the script into router');
+                        }}>🔑 Regenerate</button>
+                      </div>
+                    </div>
+                    <div className="sa-field-box">
+                      <label>Polling Interval (seconds)</label>
+                      <select
+                        value={pollingConfig.interval}
+                        onChange={async (e) => {
+                          const updated = { ...pollingConfig, interval: Number(e.target.value) };
+                          setPollingConfig(updated);
+                          await fetch('/api/super-admin/settings', {
+                            method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: 'polling_config', value: updated }),
+                          });
+                        }}
+                        style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'inherit' }}
+                      >
+                        <option value={5}>5 seconds (fastest)</option>
+                        <option value={10}>10 seconds (recommended)</option>
+                        <option value={15}>15 seconds</option>
+                        <option value={30}>30 seconds</option>
+                        <option value={60}>60 seconds</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Polling Status */}
+                  {pollingStatus && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
+                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: pollingStatus.router_online ? '#22c55e' : '#ef4444' }}>
+                          {pollingStatus.router_online ? '● Online' : '○ Offline'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888' }}>Router</div>
+                      </div>
+                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700 }}>{pollingStatus.stats?.pending || 0}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>Pending</div>
+                      </div>
+                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>{pollingStatus.stats?.completed || 0}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>Completed</div>
+                      </div>
+                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{pollingStatus.stats?.failed || 0}</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>Failed</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button className="sa-btn-outline" style={{ marginBottom: 12 }} onClick={async () => {
+                    try {
+                      const res = await fetch('/api/mikrotik/polling/status', { headers: adminHeaders() });
+                      if (res.ok) {
+                        setPollingStatus(await res.json());
+                        showToast('📊 Polling status refreshed');
+                      }
+                    } catch {}
+                  }}>📊 Refresh Polling Status</button>
+
+                  {/* RouterOS Script */}
+                  <div style={{ marginTop: 8 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📋 RouterOS Script — Paste into WinBox Terminal</h4>
+                    <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Copy this script and paste it into your MikroTik router via WinBox → Terminal. The router will automatically check for new voucher requests.</p>
+                    <div style={{ position: 'relative' }}>
+                      <pre style={{
+                        background: 'rgba(0,0,0,0.4)', color: '#22c55e', padding: 16, borderRadius: 10,
+                        fontSize: 11, lineHeight: 1.5, overflow: 'auto', maxHeight: 300,
+                        border: '1px solid rgba(34,197,94,0.2)', fontFamily: 'monospace', whiteSpace: 'pre-wrap',
+                      }}>{(() => {
+                        const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app';
+                        const cleanUrl = appUrl.replace(/\/+$/, '');
+                        const s = pollingConfig.secret || 'YOUR_SECRET';
+                        const interval = pollingConfig.interval || 10;
+                        return `# Asuk Tech Polling Agent for MikroTik RouterOS v7+
+# Paste this ENTIRE script into WinBox > Terminal
+
+/system script remove [find name="asuk-poll-agent"]
+/system script add name="asuk-poll-agent" policy=read,write,test,api source={
+  :local appUrl "${cleanUrl}/api/mikrotik/polling"
+  :local secret "${s}"
+  :do {
+    /tool fetch url=("\$appUrl\?action=fetch&secret=\$secret") dst-path="asuk-tasks.txt" mode=https as-value
+    :delay 1s
+    :local content [/file get "asuk-tasks.txt" contents]
+    /file remove "asuk-tasks.txt"
+    :if ([:find \$content "\\"code\\""] != nil) do={
+      :local pos 0
+      :while ([:find \$content "\\"id\\":\\"" \$pos] != nil) do={
+        :local idStart ([:find \$content "\\"id\\":\\"" \$pos] + 5)
+        :local idEnd [:find \$content "\\"" \$idStart]
+        :local taskId [:pick \$content \$idStart \$idEnd]
+        :local codeStart ([:find \$content "\\"code\\":\\"" \$pos] + 7)
+        :local codeEnd [:find \$content "\\"" \$codeStart]
+        :local code [:pick \$content \$codeStart \$codeEnd]
+        :local passStart ([:find \$content "\\"password\\":\\"" \$pos] + 11)
+        :local passEnd [:find \$content "\\"" \$passStart]
+        :local pass [:pick \$content \$passStart \$passEnd]
+        :local profStart ([:find \$content "\\"profile\\":\\"" \$pos] + 10)
+        :local profEnd [:find \$content "\\"" \$profStart]
+        :local profile [:pick \$content \$profStart \$profEnd]
+        :local uptimeStart ([:find \$content "\\"limit_uptime\\":\\"" \$pos] + 16)
+        :local uptimeEnd [:find \$content "\\"" \$uptimeStart]
+        :local uptime [:pick \$content \$uptimeStart \$uptimeEnd]
+        :local sharedStart ([:find \$content "\\"shared_users\\":\\"" \$pos] + 15)
+        :local sharedEnd [:find \$content "\\"" \$sharedStart]
+        :local shared [:pick \$content \$sharedStart \$sharedEnd]
+        :do {
+          /ip hotspot user add name=\$code password=\$pass profile=\$profile limit-uptime=\$uptime shared-users=\$shared
+          :log info ("Asuk: Created " . \$code)
+          :local pd ("{ \\"secret\\":\\"\$secret\\", \\"task_id\\":\\"\$taskId\\", \\"status\\":\\"completed\\"}")
+          /tool fetch url=\$appUrl mode=https http-method=post http-header-field="Content-Type: application/json" http-data=\$pd dst-path="asuk-r.txt" as-value
+          /file remove "asuk-r.txt"
+        } on-error={
+          :log warning ("Asuk: Failed " . \$code)
+        }
+        :set pos (\$idEnd + 1)
+      }
+    }
+  } on-error={ :log warning "Asuk: Poll failed" }
+}
+
+/system scheduler remove [find name="asuk-poll-schedule"]
+/system scheduler add name="asuk-poll-schedule" interval=${interval}s on-event="/system script run asuk-poll-agent" policy=read,write,test,api
+
+:put "Done! Router checks for vouchers every ${interval}s."`;
+                      })()}</pre>
+                      <button
+                        className="sa-btn-primary"
+                        style={{ position: 'absolute', top: 8, right: 8, fontSize: 12, padding: '6px 14px' }}
+                        onClick={() => {
+                          const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                          const cleanUrl = appUrl.replace(/\/+$/, '');
+                          const s = pollingConfig.secret || 'YOUR_SECRET';
+                          const interval = pollingConfig.interval || 10;
+                          const script = `/system script remove [find name="asuk-poll-agent"]
+/system script add name="asuk-poll-agent" policy=read,write,test,api source={
+  :local appUrl "${cleanUrl}/api/mikrotik/polling"
+  :local secret "${s}"
+  :do {
+    /tool fetch url=("\\$appUrl\\?action=fetch&secret=\\$secret") dst-path="asuk-tasks.txt" mode=https as-value
+    :delay 1s
+    :local content [/file get "asuk-tasks.txt" contents]
+    /file remove "asuk-tasks.txt"
+    :if ([:find \\$content "\\\\\"code\\\\\""] != nil) do={
+      :local pos 0
+      :while ([:find \\$content "\\\\\"id\\\\\":\\\\\"" \\$pos] != nil) do={
+        :local idStart ([:find \\$content "\\\\\"id\\\\\":\\\\\"" \\$pos] + 5)
+        :local idEnd [:find \\$content "\\\\\"" \\$idStart]
+        :local taskId [:pick \\$content \\$idStart \\$idEnd]
+        :local codeStart ([:find \\$content "\\\\\"code\\\\\":\\\\\"" \\$pos] + 7)
+        :local codeEnd [:find \\$content "\\\\\"" \\$codeStart]
+        :local code [:pick \\$content \\$codeStart \\$codeEnd]
+        :local passStart ([:find \\$content "\\\\\"password\\\\\":\\\\\"" \\$pos] + 11)
+        :local passEnd [:find \\$content "\\\\\"" \\$passStart]
+        :local pass [:pick \\$content \\$passStart \\$passEnd]
+        :local profStart ([:find \\$content "\\\\\"profile\\\\\":\\\\\"" \\$pos] + 10)
+        :local profEnd [:find \\$content "\\\\\"" \\$profStart]
+        :local profile [:pick \\$content \\$profStart \\$profEnd]
+        :local uptimeStart ([:find \\$content "\\\\\"limit_uptime\\\\\":\\\\\"" \\$pos] + 16)
+        :local uptimeEnd [:find \\$content "\\\\\"" \\$uptimeStart]
+        :local uptime [:pick \\$content \\$uptimeStart \\$uptimeEnd]
+        :local sharedStart ([:find \\$content "\\\\\"shared_users\\\\\":\\\\\"" \\$pos] + 15)
+        :local sharedEnd [:find \\$content "\\\\\"" \\$sharedStart]
+        :local shared [:pick \\$content \\$sharedStart \\$sharedEnd]
+        :do {
+          /ip hotspot user add name=\\$code password=\\$pass profile=\\$profile limit-uptime=\\$uptime shared-users=\\$shared
+          :log info ("Asuk: Created " . \\$code)
+          :local pd ("{ \\\\\"secret\\\\\":\\\\\"\\$secret\\\\\", \\\\\"task_id\\\\\":\\\\\"\\$taskId\\\\\", \\\\\"status\\\\\":\\\\\"completed\\\\\"}")
+          /tool fetch url=\\$appUrl mode=https http-method=post http-header-field="Content-Type: application/json" http-data=\\$pd dst-path="asuk-r.txt" as-value
+          /file remove "asuk-r.txt"
+        } on-error={
+          :log warning ("Asuk: Failed " . \\$code)
+        }
+        :set pos (\\$idEnd + 1)
+      }
+    }
+  } on-error={ :log warning "Asuk: Poll failed" }
+}
+
+/system scheduler remove [find name="asuk-poll-schedule"]
+/system scheduler add name="asuk-poll-schedule" interval=${interval}s on-event="/system script run asuk-poll-agent" policy=read,write,test,api
+
+:put "Done! Router checks for vouchers every ${interval}s."`;
+                          navigator.clipboard.writeText(script);
+                          setPollingScriptCopied(true);
+                          setTimeout(() => setPollingScriptCopied(false), 3000);
+                          showToast('📋 Script copied! Paste into WinBox → Terminal');
+                        }}
+                      >
+                        {pollingScriptCopied ? '✅ Copied!' : '📋 Copy Script'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Hotspot Sharing Control */}
             <div className="sa-glass-card" style={{ marginTop: 24 }}>
