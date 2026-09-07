@@ -14,7 +14,8 @@ export async function GET() {
       supabaseAdmin
         .from('fallback_vouchers')
         .select('profile_name, plan_id')
-        .eq('is_used', false),
+        .eq('is_used', false)
+        .or('status.is.null,status.eq.available'),
       isMikroTikConfigured(),
     ]);
 

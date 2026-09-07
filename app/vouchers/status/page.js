@@ -95,19 +95,26 @@ function VoucherStatusContent() {
     return () => clearInterval(pollInterval);
   }, [voucherCode, fetchStatus]);
 
-  // Local second-by-second countdown ticker
+  // Local second-by-second countdown ticker — re-starts on each server sync
+  const tickerRef = useRef(null);
   useEffect(() => {
-    if (localSecondsRemaining === null || localSecondsRemaining <= 0) return;
+    if (tickerRef.current) clearInterval(tickerRef.current);
 
-    const timer = setInterval(() => {
+    tickerRef.current = setInterval(() => {
       setLocalSecondsRemaining((prev) => {
-        if (prev === null || prev <= 0) return 0;
+        if (prev === null || prev <= 0) {
+          clearInterval(tickerRef.current);
+          tickerRef.current = null;
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [localSecondsRemaining]);
+    return () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    };
+  }, [data]); // re-start only when server syncs new data
 
   const handleSearchCode = (e) => {
     e.preventDefault();

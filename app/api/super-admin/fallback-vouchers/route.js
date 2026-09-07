@@ -147,6 +147,7 @@ export async function POST(request) {
       let defaultDevices = 1;
       let defaultUploadSpeed = '12M';
       let defaultDownloadSpeed = '12M';
+      let expiryMode = 'elapsed';
       try {
         const { data: hsSetting } = await supabaseAdmin
           .from('app_settings')
@@ -158,6 +159,7 @@ export async function POST(request) {
           defaultUploadSpeed = hsSetting.value.default_upload_speed || '12M';
           defaultDownloadSpeed = hsSetting.value.default_download_speed || '12M';
           if (!hsSetting.value.sharing_enabled) defaultDevices = 1;
+          expiryMode = hsSetting.value.expiry_mode || 'elapsed';
         }
       } catch (e) {}
 
@@ -195,6 +197,7 @@ export async function POST(request) {
               comment: `Fallback Pool Reserve: ${profile_name}${plan_id ? ` [${plan_id}]` : ''}`,
               shared_users: devices,
               rate_limit: rateLimit,
+              expiry_mode: expiryMode,
             });
           } catch (err) {
             console.error(`Error provisioning router voucher ${code}:`, err.message);
@@ -221,7 +224,7 @@ export async function POST(request) {
       // Insert all successfully created vouchers into Supabase fallback pool
       const { data, error: insertErr } = await supabaseAdmin
         .from('fallback_vouchers')
-        .insert(createdVouchers)
+        .upsert(createdVouchers, { onConflict: 'voucher_code', ignoreDuplicates: true })
         .select('id');
 
       if (insertErr) throw insertErr;

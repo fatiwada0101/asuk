@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { THEME_PALETTES } from '../context/BrandingContext';
 import {
@@ -482,6 +482,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
   const [generating, setGenerating] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(null);
   const [pruning, setPruning] = useState(false);
+  const mutexRef = useRef(false); // prevents double-click race on generate/batch/manual
 
   // Form states
   const [inputMode, setInputMode] = useState('auto'); // 'auto' | 'manual'
@@ -558,6 +559,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
 
   // 1-Click Auto-Generate directly on MikroTik Router with Strict Plan Binding
   const handleAutoGenerate = async (planToGen, countToGen) => {
+    if (mutexRef.current) return; // prevent double-click
     const target = planToGen || (selectedPlan === '__custom__' ? customPlan.trim() : selectedPlan);
     const qty = countToGen || autoQuantity || 10;
 
@@ -571,6 +573,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     const targetProfileName = planObj?.name || target;
     const dur = planObj?.duration || duration || '24h';
 
+    mutexRef.current = true;
     setGenerating(true);
     setGeneratingPlan(target);
     try {
@@ -604,15 +607,18 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     }
     setGenerating(false);
     setGeneratingPlan(null);
+    mutexRef.current = false;
   };
 
   // Batch replenish all low-stock plans (< 5 available) with 10 vouchers each
   const handleReplenishAllLowStock = async () => {
+    if (mutexRef.current) return; // prevent double-click
     const lowPlans = (data.summary || []).filter(s => s.available < 5);
     if (lowPlans.length === 0) {
       showToast('All plan pools are already well stocked!');
       return;
     }
+    mutexRef.current = true;
     setGenerating(true);
     let totalAdded = 0;
     for (const p of lowPlans) {
@@ -642,6 +648,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     }
     setGenerating(false);
     setGeneratingPlan(null);
+    mutexRef.current = false;
     showToast(`⚡ Batch replenished ${totalAdded} vouchers across ${lowPlans.length} low-stock plans!`);
     fetchData();
   };
@@ -649,6 +656,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
   // Manual Bulk Paste
   const handleManualAddVouchers = async (e) => {
     e?.preventDefault();
+    if (mutexRef.current) return; // prevent double-click
     const finalPlan = selectedPlan === '__custom__' ? customPlan.trim() : selectedPlan;
     if (!finalPlan) {
       showToast('Please select or enter a plan name');
@@ -663,6 +671,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     const targetPlanId = planObj?.id || finalPlan;
     const targetProfileName = planObj?.name || finalPlan;
 
+    mutexRef.current = true;
     setSubmittingManual(true);
     try {
       const res = await fetch('/api/super-admin/fallback-vouchers', {
@@ -691,6 +700,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
       showToast('Network error saving vouchers');
     }
     setSubmittingManual(false);
+    mutexRef.current = false;
   };
 
   const handleDeleteVoucher = async (id) => {
@@ -1582,6 +1592,7 @@ export default function SuperAdminPage() {
   // Hotspot Sharing
   const [hotspotSettings, setHotspotSettings] = useState({
     sharing_enabled: false, default_devices: 1, default_upload_speed: '12M', default_download_speed: '12M',
+    expiry_mode: 'elapsed', // 'elapsed' = countdown continues when offline, 'paused' = countdown pauses when offline
   });
 
   // Plan Management
@@ -3036,6 +3047,74 @@ export default function SuperAdminPage() {
                     placeholder="12M" />
                 </div>
               </div>
+
+              {/* Voucher Expiry Mode */}
+              <div className="sa-glass-card" style={{ marginTop: 16, background: 'rgba(114, 87, 255, 0.06)', border: '1px solid rgba(114, 87, 255, 0.18)' }}>
+                <div className="sa-card-header">
+                  <div>
+                    <h3 className="sa-card-title" style={{ fontSize: '0.95rem' }}>⏱️ Voucher Expiry Mode</h3>
+                    <p className="sa-card-sub">Controls how MikroTik counts voucher time when user disconnects from Wi-Fi</p>
+                  </div>
+                  <span className={`sa-badge ${hotspotSettings.expiry_mode === 'elapsed' ? 'sa-badge-purple' : 'sa-badge-success'}`}>
+                    {hotspotSettings.expiry_mode === 'elapsed' ? '⏰ Elapsed Time' : '⏸️ Paused Time'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {/* Elapsed Option */}
+                  <div
+                    onClick={() => setHotspotSettings({ ...hotspotSettings, expiry_mode: 'elapsed' })}
+                    style={{
+                      flex: 1, minWidth: 220, padding: '16px', borderRadius: 14, cursor: 'pointer',
+                      background: hotspotSettings.expiry_mode === 'elapsed' ? 'rgba(114, 87, 255, 0.12)' : 'rgba(0,0,0,0.03)',
+                      border: hotspotSettings.expiry_mode === 'elapsed' ? '2px solid #7257FF' : '1.5px solid rgba(0,0,0,0.12)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        border: hotspotSettings.expiry_mode === 'elapsed' ? '6px solid #7257FF' : '2px solid rgba(0,0,0,0.25)',
+                        background: hotspotSettings.expiry_mode === 'elapsed' ? '#7257FF' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {hotspotSettings.expiry_mode === 'elapsed' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                      </div>
+                      <strong style={{ fontSize: '0.95rem', color: '#1a1a2e' }}>⏰ Elapsed Time (Recommended)</strong>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, paddingLeft: 30 }}>
+                      Countdown <strong style={{ color: 'rgba(0,0,0,0.75)' }}>continues running</strong> even when user disconnects from Wi-Fi. A 24-hour voucher expires exactly 24 hours after first login, regardless of usage. Uses MikroTik <code style={{ background: 'rgba(114,87,255,0.1)', padding: '2px 5px', borderRadius: 4, color: '#5b3cc4' }}>keepalive-timeout</code> matching the plan duration.
+                    </p>
+                  </div>
+
+                  {/* Paused Option */}
+                  <div
+                    onClick={() => setHotspotSettings({ ...hotspotSettings, expiry_mode: 'paused' })}
+                    style={{
+                      flex: 1, minWidth: 220, padding: '16px', borderRadius: 14, cursor: 'pointer',
+                      background: hotspotSettings.expiry_mode === 'paused' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(0,0,0,0.03)',
+                      border: hotspotSettings.expiry_mode === 'paused' ? '2px solid #10B981' : '1.5px solid rgba(0,0,0,0.12)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        border: hotspotSettings.expiry_mode === 'paused' ? '6px solid #10B981' : '2px solid rgba(0,0,0,0.25)',
+                        background: hotspotSettings.expiry_mode === 'paused' ? '#10B981' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {hotspotSettings.expiry_mode === 'paused' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                      </div>
+                      <strong style={{ fontSize: '0.95rem', color: '#1a1a2e' }}>⏸️ Paused Time</strong>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, paddingLeft: 30 }}>
+                      Countdown <strong style={{ color: 'rgba(0,0,0,0.75)' }}>pauses</strong> when user disconnects from Wi-Fi. A 24-hour voucher gives exactly 24 hours of active browsing time. Uses MikroTik default short <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 5px', borderRadius: 4, color: '#0d7a54' }}>keepalive-timeout</code> (2 minutes).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="sa-button-row">
                 <button className="sa-btn-primary" onClick={async () => {
                   try {

@@ -35,9 +35,17 @@ async function getHotspotSettings() {
       .select('value')
       .eq('key', 'hotspot_settings')
       .maybeSingle();
-    return data?.value || { sharing_enabled: false, default_devices: 1, default_upload_speed: '12M', default_download_speed: '12M' };
+    return data?.value || {
+      sharing_enabled: false, default_devices: 1,
+      default_upload_speed: '12M', default_download_speed: '12M',
+      expiry_mode: 'elapsed',
+    };
   } catch {
-    return { sharing_enabled: false, default_devices: 1, default_upload_speed: '12M', default_download_speed: '12M' };
+    return {
+      sharing_enabled: false, default_devices: 1,
+      default_upload_speed: '12M', default_download_speed: '12M',
+      expiry_mode: 'elapsed',
+    };
   }
 }
 
@@ -151,6 +159,7 @@ export async function POST(request) {
           comment: `User ${user_id} - ${plan_name} - ₦${numericPrice}`,
           shared_users: planDevices,
           rate_limit: rateLimit,
+          expiry_mode: hotspotSettings.expiry_mode || 'elapsed',
         });
       } catch (routerErr) {
         console.warn('MikroTik router API failed during wallet purchase, checking fallback pool:', routerErr.message);
@@ -215,31 +224,46 @@ export async function POST(request) {
       }
     }
 
-    // 5. Record transaction
-    const { data: tx } = await supabaseAdmin
-      .from('transactions')
-      .insert({
-        user_id,
-        type: 'voucher_purchase',
-        amount: numericPrice,
-        status: 'successful',
-      })
-      .select('id')
-      .single();
+    // 5. Record transaction + voucher — refund wallet if DB write fails
+    try {
+      const { data: tx } = await supabaseAdmin
+        .from('transactions')
+        .insert({
+          user_id,
+          type: 'voucher_purchase',
+          amount: numericPrice,
+          status: 'successful',
+        })
+        .select('id')
+        .single();
 
-    // 6. Record voucher in Supabase
-    await supabaseAdmin
-      .from('vouchers')
-      .insert({
-        user_id,
-        voucher_code: code,
-        profile_name: plan_name,
-        price: numericPrice,
-        transaction_id: tx?.id || null,
-        is_used: false,
-      });
+      // 6. Record voucher in Supabase
+      await supabaseAdmin
+        .from('vouchers')
+        .insert({
+          user_id,
+          voucher_code: code,
+          profile_name: plan_name,
+          price: numericPrice,
+          transaction_id: tx?.id || null,
+          is_used: false,
+        });
+    } catch (dbErr) {
+      // DB insert failed after wallet was already deducted — refund immediately
+      console.error('DB insert failed after provisioning — refunding wallet:', dbErr.message);
+      await supabaseAdmin.rpc('adjust_wallet_balance', {
+        p_user_id: user_id,
+        p_amount: numericPrice,
+        p_operation: 'add',
+      }).catch((refundErr) => console.error('Refund also failed!', refundErr.message));
 
-    // 7. Create notification
+      return NextResponse.json({
+        error: 'Your voucher was created on the router but we could not save your record. Your wallet has been refunded. Please contact support if you see charges.',
+        router_id: routerResult?.routerId || null,
+      }, { status: 500 });
+    }
+
+    // 7. Create notification (non-fatal)
     try {
       await supabaseAdmin.from('notifications').insert({
         user_id,

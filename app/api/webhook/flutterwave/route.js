@@ -48,16 +48,7 @@ export async function POST(request) {
       return NextResponse.json({ status: 'ignored', reason: 'not successful' });
     }
 
-    // 4. Idempotency check — has this tx_ref been processed?
-    const { data: existingTx } = await supabaseAdmin
-      .from('transactions')
-      .select('id')
-      .eq('flw_ref', txRef)
-      .maybeSingle();
-
-    if (existingTx) {
-      return NextResponse.json({ status: 'duplicate', message: 'Already processed' });
-    }
+    // Idempotency is now handled atomically via upsert in the wallet credit section below.
 
     // 5. Process wallet top-up
     if (txRef.startsWith('FLW_TOPUP_') || txRef.startsWith('FLW_')) {
@@ -74,35 +65,50 @@ export async function POST(request) {
       }
 
       if (userId) {
-        // ATOMIC wallet credit — prevents race condition
-        const { data: newBalance, error: rpcErr } = await supabaseAdmin
-          .rpc('adjust_wallet_balance', {
-            p_user_id: userId,
-            p_amount: amount,
-            p_operation: 'add',
-          });
+        // ATOMIC idempotency: attempt to insert the transaction record first.
+        // If flw_ref already exists (unique constraint), the upsert silently skips
+        // and returns no data — meaning we've already processed this webhook.
+        const { data: insertedTx, error: txInsertErr } = await supabaseAdmin
+          .from('transactions')
+          .upsert({
+            user_id: userId,
+            type: 'wallet_topup',
+            amount,
+            status: 'successful',
+            flw_ref: txRef,
+          }, { onConflict: 'flw_ref', ignoreDuplicates: true })
+          .select('id')
+          .maybeSingle();
 
-        if (rpcErr) {
-          console.error('Webhook RPC error:', rpcErr);
-          return NextResponse.json({ status: 'error', message: 'Failed to credit wallet' }, { status: 500 });
+        if (txInsertErr) {
+          console.error('Webhook transaction upsert error:', txInsertErr);
+          return NextResponse.json({ status: 'error', message: 'Failed to record transaction' }, { status: 500 });
         }
 
-        // Record transaction (with flw_ref for idempotency)
-        await supabaseAdmin.from('transactions').insert({
-          user_id: userId,
-          type: 'wallet_topup',
-          amount,
-          status: 'successful',
-          flw_ref: txRef,
-        });
+        // Only credit wallet if this is a NEW transaction (not a duplicate delivery)
+        if (insertedTx?.id) {
+          const { error: rpcErr } = await supabaseAdmin
+            .rpc('adjust_wallet_balance', {
+              p_user_id: userId,
+              p_amount: amount,
+              p_operation: 'add',
+            });
 
-        // Create notification
-        await supabaseAdmin.from('notifications').insert({
-          user_id: userId,
-          title: 'Wallet Credited',
-          message: `₦${amount.toLocaleString()} has been added to your wallet via Flutterwave.`,
-          type: 'wallet_credit',
-        }).catch(() => {});
+          if (rpcErr) {
+            console.error('Webhook RPC error:', rpcErr);
+            return NextResponse.json({ status: 'error', message: 'Failed to credit wallet' }, { status: 500 });
+          }
+
+          // Create notification
+          await supabaseAdmin.from('notifications').insert({
+            user_id: userId,
+            title: 'Wallet Credited',
+            message: `₦${amount.toLocaleString()} has been added to your wallet via Flutterwave.`,
+            type: 'wallet_credit',
+          }).catch(() => {});
+        } else {
+          console.log(`Webhook duplicate detected for flw_ref ${txRef} — skipping credit`);
+        }
       }
 
       return NextResponse.json({ status: 'success', action: 'wallet_credit', amount });

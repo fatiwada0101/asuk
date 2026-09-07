@@ -23,6 +23,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const processingRef = useRef(false);
   const [routerStatus, setRouterStatus] = useState({
     loaded: false,
+    configured: true,
     online: true,
     has_fallback_vouchers: false,
     fallback_counts: {},
@@ -41,6 +42,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
         if (d.mikrotik) {
           setRouterStatus({
             loaded: true,
+            configured: d.mikrotik.configured !== false, // properly map configured flag
             online: !!d.mikrotik.online,
             has_fallback_vouchers: !!d.mikrotik.has_fallback_vouchers,
             fallback_counts: d.mikrotik.fallback_counts || {},
@@ -167,6 +169,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
         isFallback: data.is_fallback,
       });
       setStep('success');
+      processingRef.current = false; // reset mutex after success
       if (onSuccess) onSuccess();
     } catch (err) {
       setErrorMessage(err.message);
@@ -275,6 +278,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
               isFallback: verifyData.is_fallback,
             });
             setStep('success');
+            processingRef.current = false; // reset mutex after success
             if (onSuccess) onSuccess();
           } catch (err) {
             setErrorMessage(err.message);

@@ -58,15 +58,19 @@ export async function POST(request) {
       planDownloadSpeed = planData.download_speed || '12M';
     }
 
-    // Check global hotspot sharing toggle
+    // Check global hotspot sharing toggle and expiry mode
+    let expiryMode = 'elapsed'; // default
     try {
       const { data: hsData } = await supabaseAdmin
         .from('app_settings')
         .select('value')
         .eq('key', 'hotspot_settings')
         .maybeSingle();
-      if (hsData?.value && !hsData.value.sharing_enabled) {
-        planDevices = 1;
+      if (hsData?.value) {
+        if (!hsData.value.sharing_enabled) {
+          planDevices = 1;
+        }
+        expiryMode = hsData.value.expiry_mode || 'elapsed';
       }
     } catch (e) {}
 
@@ -145,6 +149,7 @@ export async function POST(request) {
           comment: `Online Pay: ${email || phone || 'Guest'} - ${plan_name} - ₦${numericPrice} [Ref: ${tx_ref}]`,
           shared_users: planDevices,
           rate_limit: rateLimit,
+          expiry_mode: expiryMode,
         });
       } catch (routerErr) {
         console.warn('MikroTik router API failed after payment, triggering fallback pool:', routerErr.message);
@@ -164,19 +169,9 @@ export async function POST(request) {
           isFallback = true;
         } else {
           // Payment was taken, but router provisioning had an error and no backup vouchers
-          await supabaseAdmin
-            .from('vouchers')
-            .insert({
-              user_id: user_id || null,
-              voucher_code: code,
-              profile_name: plan_name,
-              price: numericPrice,
-              is_used: false,
-            });
-
+          // We do NOT insert a voucher row here — the user must contact support with the tx_ref
           return NextResponse.json({
             success: false,
-            voucher_code: code,
             error: `Payment was verified (Ref: ${tx_ref}), but the router API failed ("${routerErr.message}") and no fallback vouchers are available in stock for "${plan_name}". Please contact support with Ref: ${tx_ref}.`,
             pending_router: true,
           }, { status: 502 });
@@ -199,19 +194,9 @@ export async function POST(request) {
         code = claimed.voucher_code;
         isFallback = true;
       } else {
-        await supabaseAdmin
-          .from('vouchers')
-          .insert({
-            user_id: user_id || null,
-            voucher_code: code,
-            profile_name: plan_name,
-            price: numericPrice,
-            is_used: false,
-          });
-
+        // Router not configured + no fallback vouchers — return error without inserting
         return NextResponse.json({
           success: false,
-          voucher_code: code,
           error: `Payment was verified (Ref: ${tx_ref}), but the Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${plan_name}". Please contact support with Ref: ${tx_ref}.`,
           pending_router: true,
         }, { status: 502 });

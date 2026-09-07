@@ -54,16 +54,18 @@ export async function POST(request) {
     };
     const expiryLabel = expiryLabels[expiry_type] || expiry_type;
 
-    // Check global hotspot sharing setting
+    // Check global hotspot sharing setting and expiry mode
     let effectiveDevices = Number(devices) || 1;
+    let expiryMode = 'elapsed';
     try {
       const { data: hsData } = await supabaseAdmin
         .from('app_settings')
         .select('value')
         .eq('key', 'hotspot_settings')
         .maybeSingle();
-      if (hsData?.value && !hsData.value.sharing_enabled) {
-        effectiveDevices = 1;
+      if (hsData?.value) {
+        if (!hsData.value.sharing_enabled) effectiveDevices = 1;
+        expiryMode = hsData.value.expiry_mode || 'elapsed';
       }
     } catch (e) {}
 
@@ -94,6 +96,7 @@ export async function POST(request) {
           comment: `Batch: ${plan_name} (${expiryLabel}) — ₦${price}`,
           shared_users: effectiveDevices,
           rate_limit: `${upload_speed}/${download_speed}`,
+          expiry_mode: expiryMode,
         });
 
         // Record in Supabase

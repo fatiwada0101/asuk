@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { validateAdminAuth } from '@/lib/admin-auth';
 
 // GET — Fetch user's notifications
 export async function GET(request) {
@@ -65,8 +66,13 @@ export async function PATCH(request) {
   }
 }
 
-// POST — Create a notification (internal use)
+// POST — Create a notification (internal/admin use only)
 export async function POST(request) {
+  // Restrict to super admin — user-facing routes insert notifications server-side
+  if (!(await validateAdminAuth(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { user_id, title, message, type } = await request.json();
 

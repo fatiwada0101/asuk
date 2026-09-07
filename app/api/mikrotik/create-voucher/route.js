@@ -42,7 +42,8 @@ export async function POST(request) {
       }
     }
 
-    // Read global hotspot sharing setting
+    // Read global hotspot sharing setting and expiry mode
+    let expiryMode = 'elapsed';
     try {
       const { data: hsData } = await supabaseAdmin
         .from('app_settings')
@@ -50,8 +51,9 @@ export async function POST(request) {
         .eq('key', 'hotspot_settings')
         .maybeSingle();
 
-      if (hsData?.value && !hsData.value.sharing_enabled) {
-        planDevices = 1;
+      if (hsData?.value) {
+        if (!hsData.value.sharing_enabled) planDevices = 1;
+        expiryMode = hsData.value.expiry_mode || 'elapsed';
       }
     } catch (e) {}
 
@@ -71,6 +73,7 @@ export async function POST(request) {
       comment: `Admin: ${plan_name} (₦${price})`,
       shared_users: planDevices,
       rate_limit: rateLimit,
+      expiry_mode: expiryMode,
     });
 
     // Record in Supabase
