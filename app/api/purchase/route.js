@@ -122,28 +122,17 @@ export async function POST(request) {
     } catch (routerErr) {
       console.error('MikroTik provisioning failed, checking fallback vouchers:', routerErr.message);
 
-      // Attempt to claim a pre-generated fallback voucher from the pool
-      const { data: fallbackVoucher } = await supabaseAdmin
-        .from('fallback_vouchers')
-        .select('id, voucher_code')
-        .eq('profile_name', plan_name)
-        .eq('is_used', false)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      // Atomic, race-condition safe claim from fallback pool
+      const { data: claimedRows, error: claimErr } = await supabaseAdmin
+        .rpc('claim_fallback_voucher', {
+          p_profile_name: plan_name,
+          p_user_id: user_id,
+        });
 
-      if (fallbackVoucher) {
-        console.log(`Using fallback voucher ${fallbackVoucher.voucher_code} for ${plan_name}`);
-        await supabaseAdmin
-          .from('fallback_vouchers')
-          .update({
-            is_used: true,
-            used_by: user_id,
-            used_at: new Date().toISOString(),
-          })
-          .eq('id', fallbackVoucher.id);
-
-        code = fallbackVoucher.voucher_code;
+      if (!claimErr && claimedRows && claimedRows.length > 0) {
+        const claimed = claimedRows[0];
+        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name}`);
+        code = claimed.voucher_code;
         isFallback = true;
       } else {
         // Router failed AND no fallback vouchers — refund wallet!
