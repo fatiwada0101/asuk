@@ -20,6 +20,24 @@ export default function VouchersPage() {
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState('');
   const [toast, setToast] = useState('');
+  const [networkInfo, setNetworkInfo] = useState({
+    hotspot_url: 'asuktech.net',
+    wifi_ssid: 'Asuk Tech Wi-Fi',
+  });
+
+  useEffect(() => {
+    fetch('/api/settings/public')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.mikrotik) {
+          setNetworkInfo({
+            hotspot_url: d.mikrotik.hotspot_url || 'asuktech.net',
+            wifi_ssid: d.mikrotik.wifi_ssid || 'Asuk Tech Wi-Fi',
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const formatPrice = (amount) =>
     '₦' +
@@ -102,9 +120,13 @@ export default function VouchersPage() {
 
       {/* Sub-header info */}
       <div style={{ marginBottom: '18px' }}>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Your generated Wi-Fi access voucher codes for MikroTik Hotspot.
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+          Your active hotspot passes for <strong>{networkInfo.wifi_ssid}</strong>.
         </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '11.5px', color: '#7257FF', fontWeight: 700 }}>
+          <span>🌐 Hotspot Portal:</span>
+          <span style={{ fontFamily: 'monospace' }}>http://{networkInfo.hotspot_url}</span>
+        </div>
       </div>
 
       {/* Vouchers List */}
@@ -206,6 +228,31 @@ export default function VouchersPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {!v.is_used && (
+                    <a
+                      href={`http://${networkInfo.hotspot_url}/login?username=${encodeURIComponent(v.voucher_code)}&password=${encodeURIComponent(v.voucher_code)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '8px 12px',
+                        background: '#10B981',
+                        color: '#FFFFFF',
+                        borderRadius: '999px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                      }}
+                      title={`Connect to ${networkInfo.wifi_ssid} and auto-login`}
+                    >
+                      🚀 Connect
+                    </a>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => router.push(`/vouchers/status?code=${encodeURIComponent(v.voucher_code)}`)}

@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-server';
-import { checkMikroTikHealth, isMikroTikConfigured } from '@/lib/mikrotik';
+import { NextResponse } from 'next/server.js';
+import { supabaseAdmin } from '@/lib/supabase-server.js';
+import { checkMikroTikHealth, isMikroTikConfigured } from '@/lib/mikrotik.js';
 
 export async function GET() {
   try {
@@ -9,7 +9,7 @@ export async function GET() {
       supabaseAdmin
         .from('app_settings')
         .select('key, value')
-        .in('key', ['flutterwave', 'branding']),
+        .in('key', ['flutterwave', 'branding', 'mikrotik']),
       checkMikroTikHealth(2500),
       supabaseAdmin
         .from('fallback_vouchers')
@@ -43,6 +43,9 @@ export async function GET() {
       theme: 'violet',
     };
 
+    let hotspotUrl = 'asuktech.net';
+    let wifiSsid = 'Asuk Tech Wi-Fi';
+
     if (settings) {
       for (const s of settings) {
         if (s.key === 'flutterwave' && s.value) {
@@ -55,6 +58,10 @@ export async function GET() {
             logo_url: s.value.logo_url || branding.logo_url,
             theme: s.value.theme || branding.theme,
           };
+        }
+        if (s.key === 'mikrotik' && s.value) {
+          if (s.value.hotspot_url) hotspotUrl = s.value.hotspot_url.trim();
+          if (s.value.wifi_ssid) wifiSsid = s.value.wifi_ssid.trim();
         }
       }
     }
@@ -70,6 +77,8 @@ export async function GET() {
         online: mikrotikOnline,
         has_fallback_vouchers: hasFallbackVouchers,
         fallback_counts: fallbackCounts,
+        hotspot_url: hotspotUrl,
+        wifi_ssid: wifiSsid,
       },
     });
   } catch (error) {
@@ -80,6 +89,8 @@ export async function GET() {
         online: false,
         has_fallback_vouchers: false,
         fallback_counts: {},
+        hotspot_url: 'asuktech.net',
+        wifi_ssid: 'Asuk Tech Wi-Fi',
       },
     });
   }

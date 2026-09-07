@@ -27,8 +27,26 @@ function VoucherStatusContent() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [toast, setToast] = useState('');
   const [copied, setCopied] = useState(false);
+  const [networkInfo, setNetworkInfo] = useState({
+    hotspot_url: 'asuktech.net',
+    wifi_ssid: 'Asuk Tech Wi-Fi',
+  });
+
+  // Fetch hotspot URL and Wi-Fi SSID
+  useEffect(() => {
+    fetch('/api/settings/public')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.mikrotik) {
+          setNetworkInfo({
+            hotspot_url: d.mikrotik.hotspot_url || 'asuktech.net',
+            wifi_ssid: d.mikrotik.wifi_ssid || 'Asuk Tech Wi-Fi',
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Client-side ticking countdown (ticks every 1 second)
   const [localSecondsRemaining, setLocalSecondsRemaining] = useState(null);
@@ -486,6 +504,65 @@ function VoucherStatusContent() {
             Single-Device Binding
           </div>
         </div>
+      </div>
+
+      {/* ── 1-Click Hotspot Login & Connection Banner ── */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: 20,
+        padding: '16px 18px',
+        boxShadow: 'var(--shadow-subtle)',
+        border: '1px solid #F0F1F5',
+        marginBottom: 16
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '18px' }}>📶</span>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Wi-Fi Network SSID
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {networkInfo.wifi_ssid}
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+              Hotspot Portal
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#7257FF', fontFamily: 'monospace' }}>
+              {networkInfo.hotspot_url}
+            </div>
+          </div>
+        </div>
+
+        {!isExpired && (
+          <a
+            href={`http://${networkInfo.hotspot_url}/login?username=${encodeURIComponent(data?.code || voucherCode)}&password=${encodeURIComponent(data?.code || voucherCode)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              width: '100%',
+              padding: '13px',
+              borderRadius: 999,
+              background: '#10B981',
+              color: '#FFFFFF',
+              fontSize: '13.5px',
+              fontWeight: 800,
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <span>🚀</span>
+            <span>1-Click Auto-Login to Wi-Fi</span>
+          </a>
+        )}
       </div>
 
       {/* ── Action Buttons ── */}

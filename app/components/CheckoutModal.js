@@ -28,6 +28,8 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
     online: true,
     has_fallback_vouchers: false,
     fallback_counts: {},
+    hotspot_url: 'asuktech.net',
+    wifi_ssid: 'Asuk Tech Wi-Fi',
   });
 
   const walletBalance = wallet ? parseFloat(wallet.balance) : 0;
@@ -47,6 +49,8 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
             online: !!d.mikrotik.online,
             has_fallback_vouchers: !!d.mikrotik.has_fallback_vouchers,
             fallback_counts: d.mikrotik.fallback_counts || {},
+            hotspot_url: d.mikrotik.hotspot_url || 'asuktech.net',
+            wifi_ssid: d.mikrotik.wifi_ssid || 'Asuk Tech Wi-Fi',
           });
         }
       })
@@ -578,12 +582,38 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
                 {copied ? '✓ Copied to Clipboard!' : '📋 Copy Voucher Code'}
               </button>
 
+              {/* 1-Click Auto-Login Button */}
+              {routerStatus.hotspot_url && (
+                <a
+                  href={`http://${routerStatus.hotspot_url}/login?username=${encodeURIComponent(voucherData.code)}&password=${encodeURIComponent(voucherData.code)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-block"
+                  style={{
+                    marginTop: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    textDecoration: 'none',
+                    fontWeight: 700,
+                    background: '#10B981',
+                    color: '#FFFFFF',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                  }}
+                >
+                  <span>🚀</span> Connect to Wi-Fi Now (Auto-Login)
+                </a>
+              )}
+
               <div className="ticket-instructions">
                 <strong>How to Connect:</strong>
                 <ol>
-                  <li>Connect your device to Wi-Fi: <strong>AsukTech_Hotspot</strong></li>
-                  <li>Open any web browser or wait for login screen to pop up</li>
-                  <li>Enter the code <strong>{voucherData.code}</strong> as both Username & Password</li>
+                  <li>Connect device to Wi-Fi: <strong>{routerStatus.wifi_ssid || 'Asuk Tech Wi-Fi'}</strong></li>
+                  <li>Tap the green <strong>&ldquo;Connect to Wi-Fi Now&rdquo;</strong> button above to auto-login without typing credentials</li>
+                  <li>Or browse to <strong>http://{routerStatus.hotspot_url || 'asuktech.net'}</strong> and enter code <strong>{voucherData.code}</strong></li>
                 </ol>
               </div>
 

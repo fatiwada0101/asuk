@@ -25,6 +25,7 @@ import {
   ZapIcon,
   ThermometerIcon,
 } from '../components/Icons';
+import MikroTikSetupGuide from '../components/MikroTikSetupGuide';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: TrendingUpIcon },
@@ -1595,8 +1596,16 @@ export default function SuperAdminPage() {
 
   // MikroTik Config
   const [mikrotikForm, setMikrotikForm] = useState({
-    ip: '192.168.88.1', user: 'admin', pass: '', port: '443', use_ssl: true,
+    ip: '192.168.88.1',
+    user: 'admin',
+    pass: '',
+    port: '443',
+    use_ssl: true,
+    hotspot_url: 'asuktech.net',
+    wifi_ssid: 'Asuk Tech Wi-Fi',
   });
+  const [syncingHotspot, setSyncingHotspot] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
   const [flutterwaveForm, setFlutterwaveForm] = useState({
     public_key: '', secret_key: '', webhook_secret: '', enabled: false,
   });
@@ -1843,6 +1852,31 @@ export default function SuperAdminPage() {
     finally {
       actionLockRef.current = false;
       setActionBusy(false);
+    }
+  };
+
+  const handleSyncHotspot = async () => {
+    if (syncingHotspot) return;
+    setSyncingHotspot(true);
+    try {
+      const res = await fetch('/api/mikrotik/sync-hotspot', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          dns_name: mikrotikForm.hotspot_url,
+          wifi_ssid: mikrotikForm.wifi_ssid,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ ${data.message || 'Hotspot domain configured on router!'}`);
+      } else {
+        showToast(data.error || 'Failed to sync hotspot domain');
+      }
+    } catch (e) {
+      showToast('Network error syncing hotspot');
+    } finally {
+      setSyncingHotspot(false);
     }
   };
 
@@ -3034,24 +3068,58 @@ export default function SuperAdminPage() {
                 </span>
               </div>
               <div className="sa-form-grid-2">
-                <div className="sa-field-box"><label>Router IP *</label><input value={mikrotikForm.ip} onChange={e => setMikrotikForm({ ...mikrotikForm, ip: e.target.value })} placeholder="192.168.88.1" /></div>
+                <div className="sa-field-box"><label>Router IP / Hostname *</label><input value={mikrotikForm.ip} onChange={e => setMikrotikForm({ ...mikrotikForm, ip: e.target.value })} placeholder="192.168.88.1" /></div>
                 <div className="sa-field-box"><label>REST API Port *</label><input value={mikrotikForm.port} onChange={e => setMikrotikForm({ ...mikrotikForm, port: e.target.value })} placeholder="443" /></div>
-                <div className="sa-field-box"><label>Username *</label><input value={mikrotikForm.user} onChange={e => setMikrotikForm({ ...mikrotikForm, user: e.target.value })} placeholder="admin" /></div>
-                <div className="sa-field-box"><label>Password</label><input type="password" value={mikrotikForm.pass} onChange={e => setMikrotikForm({ ...mikrotikForm, pass: e.target.value })} placeholder="••••••••" /></div>
+                <div className="sa-field-box"><label>API Username *</label><input value={mikrotikForm.user} onChange={e => setMikrotikForm({ ...mikrotikForm, user: e.target.value })} placeholder="admin" /></div>
+                <div className="sa-field-box"><label>API Password</label><input type="password" value={mikrotikForm.pass} onChange={e => setMikrotikForm({ ...mikrotikForm, pass: e.target.value })} placeholder="••••••••" /></div>
+                <div className="sa-field-box">
+                  <label>Hotspot Portal Domain / URL (e.g. asuktech.net) *</label>
+                  <input value={mikrotikForm.hotspot_url || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, hotspot_url: e.target.value })} placeholder="asuktech.net" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Used for automatic 1-click user redirection and router profile DNS Name</span>
+                </div>
+                <div className="sa-field-box">
+                  <label>Wi-Fi Broadcast Name (SSID) *</label>
+                  <input value={mikrotikForm.wifi_ssid || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, wifi_ssid: e.target.value })} placeholder="Asuk Tech Wi-Fi" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Displayed to users on vouchers and connection instructions</span>
+                </div>
               </div>
               <div className="sa-ssl-check-row">
                 <label className="sa-checkbox-label">
                   <input type="checkbox" checked={mikrotikForm.use_ssl} onChange={e => setMikrotikForm({ ...mikrotikForm, use_ssl: e.target.checked })} />
-                  <span>Use SSL / HTTPS (self-signed OK)</span>
+                  <span>Use SSL / HTTPS (self-signed router certificates supported)</span>
                 </label>
               </div>
-              <div className="sa-button-row">
+              <div className="sa-button-row" style={{ flexWrap: 'wrap', gap: 10 }}>
                 <button className="sa-btn-primary" onClick={saveMikrotik}>Save Configuration</button>
                 <button className="sa-btn-outline" onClick={() => handleTestMikrotik(false)} disabled={testLoading}>
                   {testLoading ? 'Testing...' : '⚡ Test Connection'}
                 </button>
+                <button
+                  className="sa-btn-outline"
+                  onClick={handleSyncHotspot}
+                  disabled={syncingHotspot}
+                  style={{ borderColor: '#7257FF', color: '#7257FF', fontWeight: 700 }}
+                >
+                  {syncingHotspot ? 'Pushing...' : `🌐 Push "${mikrotikForm.hotspot_url || 'asuktech.net'}" to Router`}
+                </button>
+                <button
+                  className="sa-btn-outline"
+                  onClick={() => setShowTutorial(!showTutorial)}
+                  style={{ fontWeight: 600 }}
+                >
+                  {showTutorial ? '📖 Hide WinBox Guide' : '📖 WinBox Setup Guide'}
+                </button>
               </div>
             </div>
+
+            {/* ═══ MIKROTIK WINBOX SETUP GUIDE & TUTORIAL ═══ */}
+            {showTutorial && (
+              <MikroTikSetupGuide
+                mikrotikForm={mikrotikForm}
+                onSyncRouter={handleSyncHotspot}
+                isSyncing={syncingHotspot}
+              />
+            )}
 
             {testResult && (
               <div className="sa-glass-card" style={{ marginTop: 24 }}>
