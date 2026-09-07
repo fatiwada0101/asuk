@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -43,9 +43,9 @@ const TABS = [
   { id: 'payments', label: 'Payment Gateway', icon: ServerIcon },
 ];
 
-// ═══════════════════════════════════════════════════════════
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 // FINANCE TAB COMPONENT
-// ═══════════════════════════════════════════════════════════
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function FinanceTab({ adminHeaders, formatPrice, showToast }) {
   const [financeData, setFinanceData] = useState(null);
   const [finLoading, setFinLoading] = useState(false);
@@ -182,7 +182,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       });
 
       doc.save(`finance_report_${start}_to_${end}.pdf`);
-      showToast('✅ Full PDF exported!');
+      showToast('Ã¢Å“â€¦ Full PDF exported!');
     } catch (err) {
       console.error('PDF export error:', err);
       showToast('Failed to export PDF');
@@ -217,7 +217,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
 
       // Transactions sheet
-      const txHeaders = ['Date', 'Voucher Code', 'Plan', 'Amount (₦)', 'Status'];
+      const txHeaders = ['Date', 'Voucher Code', 'Plan', 'Amount (Ã¢â€šÂ¦)', 'Status'];
       const txRows = (dataToExport.transactions || []).map(t => [
         new Date(t.date).toLocaleDateString(),
         t.voucher_code,
@@ -228,7 +228,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       const ws2 = XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]);
 
       // Daily breakdown sheet
-      const dailyHeaders = ['Date', 'Sales Count', 'Revenue (₦)'];
+      const dailyHeaders = ['Date', 'Sales Count', 'Revenue (Ã¢â€šÂ¦)'];
       const dailyRows = (dataToExport.dailyBreakdown || []).map(d => [d.date, d.count, d.revenue]);
       const ws3 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
 
@@ -238,7 +238,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
       XLSX.utils.book_append_sheet(wb, ws3, 'Daily Breakdown');
 
       XLSX.writeFile(wb, `finance_report_${start}_to_${end}.xlsx`);
-      showToast('✅ Full Excel exported!');
+      showToast('Ã¢Å“â€¦ Full Excel exported!');
     } catch (err) {
       console.error('Excel export error:', err);
       showToast('Failed to export Excel');
@@ -267,11 +267,11 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="sa-btn-primary" onClick={exportPDF} disabled={!financeData || finLoading || exporting}
               style={{ fontSize: 13, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              {exporting ? '⏳ Exporting...' : '📄 Export PDF'}
+              {exporting ? 'Ã¢ÂÂ³ Exporting...' : 'Ã°Å¸â€œâ€ž Export PDF'}
             </button>
             <button className="sa-btn-outline" onClick={exportExcel} disabled={!financeData || finLoading || exporting}
               style={{ fontSize: 13, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              {exporting ? '⏳ Exporting...' : '📊 Export Excel'}
+              {exporting ? 'Ã¢ÂÂ³ Exporting...' : 'Ã°Å¸â€œÅ  Export Excel'}
             </button>
           </div>
         </div>
@@ -337,8 +337,8 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
             </div>
             <div className="sa-kpi-card">
               <div className="sa-kpi-top"><span className="sa-kpi-label">Top Plan</span></div>
-              <div className="sa-kpi-value" style={{ fontSize: 18 }}>{summary.topPlan?.name || '—'}</div>
-              <div className="sa-kpi-footer">{summary.topPlan ? `${summary.topPlan.count} sold • ${formatPrice(summary.topPlan.revenue)}` : 'No sales yet'}</div>
+              <div className="sa-kpi-value" style={{ fontSize: 18 }}>{summary.topPlan?.name || 'Ã¢â‚¬â€'}</div>
+              <div className="sa-kpi-footer">{summary.topPlan ? `${summary.topPlan.count} sold Ã¢â‚¬Â¢ ${formatPrice(summary.topPlan.revenue)}` : 'No sales yet'}</div>
             </div>
           </div>
 
@@ -348,7 +348,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
               <div>
                 <h3 className="sa-card-title">Transactions Ledger</h3>
                 <p className="sa-card-sub">
-                  Showing {fromRecord}–{toRecord} of {totalMatching} paid purchases
+                  Showing {fromRecord}Ã¢â‚¬â€œ{toRecord} of {totalMatching} paid purchases
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -403,7 +403,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
                         <tr key={t.id}>
                           <td>{new Date(t.date).toLocaleDateString()}</td>
                           <td><code style={{ fontSize: 12 }}>{t.voucher_code}</code></td>
-                          <td>{t.plan || '—'}</td>
+                          <td>{t.plan || 'Ã¢â‚¬â€'}</td>
                           <td><strong>{formatPrice(t.amount)}</strong></td>
                           <td>
                             <span className={`sa-badge ${t.used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
@@ -438,7 +438,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
                       onClick={() => setPage(1)}
                       style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
                     >
-                      « First
+                      Ã‚Â« First
                     </button>
                     <button
                       type="button"
@@ -447,7 +447,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
                     >
-                      ‹ Prev
+                      Ã¢â‚¬Â¹ Prev
                     </button>
 
                     <span style={{
@@ -468,7 +468,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
                     >
-                      Next ›
+                      Next Ã¢â‚¬Âº
                     </button>
                     <button
                       type="button"
@@ -477,7 +477,7 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
                       onClick={() => setPage(totalPages)}
                       style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
                     >
-                      Last »
+                      Last Ã‚Â»
                     </button>
                   </div>
                 </div>
@@ -490,9 +490,9 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 // FALLBACK VOUCHER POOL COMPONENT (AUTO-GENERATE & PAGINATED)
-// ═══════════════════════════════════════════════════════════
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
   const [data, setData] = useState({
     vouchers: [],
@@ -619,10 +619,10 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
 
       const json = await res.json();
       if (res.ok) {
-        showToast(`⚡ Generated & seeded ${json.added} vouchers for "${targetProfileName}" on MikroTik (Sharing: ${customDevices}, ${customUpload}/${customDownload})!`);
+        showToast(`Ã¢Å¡Â¡ Generated & seeded ${json.added} vouchers for "${targetProfileName}" on MikroTik (Sharing: ${customDevices}, ${customUpload}/${customDownload})!`);
         fetchData();
       } else {
-        showToast(`❌ ${json.error || 'Failed to auto-generate vouchers'}`);
+        showToast(`Ã¢ÂÅ’ ${json.error || 'Failed to auto-generate vouchers'}`);
       }
     } catch {
       showToast('Network error while auto-generating vouchers');
@@ -671,7 +671,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
     setGenerating(false);
     setGeneratingPlan(null);
     mutexRef.current = false;
-    showToast(`⚡ Batch replenished ${totalAdded} vouchers across ${lowPlans.length} low-stock plans!`);
+    showToast(`Ã¢Å¡Â¡ Batch replenished ${totalAdded} vouchers across ${lowPlans.length} low-stock plans!`);
     fetchData();
   };
 
@@ -712,11 +712,11 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
 
       const json = await res.json();
       if (res.ok) {
-        showToast(`✅ Successfully added ${json.added} vouchers to fallback pool!`);
+        showToast(`Ã¢Å“â€¦ Successfully added ${json.added} vouchers to fallback pool!`);
         setVoucherCodes('');
         fetchData();
       } else {
-        showToast(`❌ ${json.error || 'Failed to add vouchers'}`);
+        showToast(`Ã¢ÂÅ’ ${json.error || 'Failed to add vouchers'}`);
       }
     } catch {
       showToast('Network error saving vouchers');
@@ -787,10 +787,10 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
         const detail = json.pruned > 0
           ? `${json.used_pruned || 0} used + ${json.expired_pruned || 0} expired`
           : '0';
-        showToast(`🧹 Cleaned up ${json.pruned || 0} vouchers (${detail}) from reserve pool!`);
+        showToast(`Ã°Å¸Â§Â¹ Cleaned up ${json.pruned || 0} vouchers (${detail}) from reserve pool!`);
         fetchData();
       } else {
-        showToast(`❌ ${json.error || 'Failed to prune vouchers'}`);
+        showToast(`Ã¢ÂÅ’ ${json.error || 'Failed to prune vouchers'}`);
       }
     } catch {
       showToast('Network error pruning vouchers');
@@ -815,7 +815,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
             padding: '10px 14px',
             borderRadius: 12
           }}>
-            🛡️
+            Ã°Å¸â€ºÂ¡Ã¯Â¸Â
           </div>
           <div style={{ flex: 1 }}>
             <h3 className="sa-card-title" style={{ fontSize: '1.1rem', marginBottom: 4 }}>
@@ -858,7 +858,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
           <div className="sa-kpi-val" style={{ color: data.stats.expired > 0 ? '#EF4444' : '#8E8E93' }}>
             {data.stats.expired}
           </div>
-          <div className="sa-kpi-sub">Past validity — prune to clean up</div>
+          <div className="sa-kpi-sub">Past validity Ã¢â‚¬â€ prune to clean up</div>
         </div>
 
         <div className="sa-kpi-card">
@@ -912,7 +912,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   }}
                   title="Generate 10 vouchers for each plan with low stock (< 5)"
                 >
-                  ⚡ Auto-Stock Low ({lowStockPlans.length})
+                  Ã¢Å¡Â¡ Auto-Stock Low ({lowStockPlans.length})
                 </button>
               )}
               <button className="sa-btn-outline" onClick={fetchData} disabled={loading} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
@@ -970,7 +970,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                         <span style={{ color: item.available > 0 ? '#10B981' : '#EF4444', fontWeight: 600 }}>
                           {item.available} available
                         </span>
-                        {' • '}{item.used} used{' • '}{item.total} total
+                        {' Ã¢â‚¬Â¢ '}{item.used} used{' Ã¢â‚¬Â¢ '}{item.total} total
                       </div>
                     </div>
 
@@ -989,7 +989,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                         }}
                         title="Quick-generate 10 vouchers for this pool"
                       >
-                        {isThisGenerating ? '⏳...' : '+10'}
+                        {isThisGenerating ? 'Ã¢ÂÂ³...' : '+10'}
                       </button>
 
                       <button
@@ -1053,7 +1053,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   cursor: 'pointer'
                 }}
               >
-                ⚡ 1-Click Auto
+                Ã¢Å¡Â¡ 1-Click Auto
               </button>
               <button
                 type="button"
@@ -1069,12 +1069,12 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   cursor: 'pointer'
                 }}
               >
-                📝 Manual Paste
+                Ã°Å¸â€œÂ Manual Paste
               </button>
             </div>
           </div>
 
-          {/* ── MODE 1: AUTO-GENERATE ON ROUTER ── */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ MODE 1: AUTO-GENERATE ON ROUTER Ã¢â€â‚¬Ã¢â€â‚¬ */}
           {inputMode === 'auto' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="sa-field-box">
@@ -1093,7 +1093,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 >
                   {(plans || []).map(p => (
                     <option key={p.id} value={p.name}>
-                      {p.name} ({p.duration} • {p.speed || '12MB/12MB'} • {p.devices || 1} Device)
+                      {p.name} ({p.duration} Ã¢â‚¬Â¢ {p.speed || '12MB/12MB'} Ã¢â‚¬Â¢ {p.devices || 1} Device)
                     </option>
                   ))}
                   <option value="__custom__">+ Custom Plan Name</option>
@@ -1158,8 +1158,8 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                     color: '#C4B5FD',
                   }}
                 >
-                  <span>⚙️ Default Settings ({customDevices} Device, ↑{customUpload} / ↓{customDownload})</span>
-                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{showAdvanced ? '▲ Collapse' : '▼ Tweak Defaults'}</span>
+                  <span>Ã¢Å¡â„¢Ã¯Â¸Â Default Settings ({customDevices} Device, Ã¢â€ â€˜{customUpload} / Ã¢â€ â€œ{customDownload})</span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>{showAdvanced ? 'Ã¢â€“Â² Collapse' : 'Ã¢â€“Â¼ Tweak Defaults'}</span>
                 </div>
 
                 {showAdvanced && (
@@ -1208,7 +1208,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 color: '#C4B5FD',
                 lineHeight: 1.4
               }}>
-                ⚡ <strong>Plan-Isolated Auto-Stock:</strong> This creates {autoQuantity} vouchers on your MikroTik router configured for 1 device sharing and {customUpload}/{customDownload} rate limits, and binds them strictly to the selected plan.
+                Ã¢Å¡Â¡ <strong>Plan-Isolated Auto-Stock:</strong> This creates {autoQuantity} vouchers on your MikroTik router configured for 1 device sharing and {customUpload}/{customDownload} rate limits, and binds them strictly to the selected plan.
               </div>
 
               <button
@@ -1218,12 +1218,12 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 onClick={() => handleAutoGenerate(null, autoQuantity)}
                 style={{ marginTop: 4 }}
               >
-                {generating ? '⏳ Provisioning on Router & Stocking...' : `⚡ Auto-Generate ${autoQuantity} Vouchers`}
+                {generating ? 'Ã¢ÂÂ³ Provisioning on Router & Stocking...' : `Ã¢Å¡Â¡ Auto-Generate ${autoQuantity} Vouchers`}
               </button>
             </div>
           )}
 
-          {/* ── MODE 2: MANUAL BULK PASTE ── */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ MODE 2: MANUAL BULK PASTE Ã¢â€â‚¬Ã¢â€â‚¬ */}
           {inputMode === 'manual' && (
             <form onSubmit={handleManualAddVouchers} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="sa-field-box">
@@ -1307,11 +1307,11 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
         </div>
       </div>
 
-      {/* ── MAINTENANCE & SCALE HOUSEKEEPING CARD ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ MAINTENANCE & SCALE HOUSEKEEPING CARD Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="sa-glass-card" style={{ marginTop: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#fff' }}>🧹 Pool Maintenance & Scale Housekeeping</h4>
+            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: '#fff' }}>Ã°Å¸Â§Â¹ Pool Maintenance & Scale Housekeeping</h4>
             <p style={{ margin: 0, fontSize: '0.82rem', color: '#8E8E93' }}>
               Keep your database lean and performant even when handling thousands of historical vouchers.
             </p>
@@ -1332,18 +1332,18 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
             }}
             title="Prune all used and expired vouchers from fallback table"
           >
-            {pruning ? '⏳ Pruning...' : `🧹 Prune ${data.stats.used} Used + ${data.stats.expired} Expired`}
+            {pruning ? 'Ã¢ÂÂ³ Pruning...' : `Ã°Å¸Â§Â¹ Prune ${data.stats.used} Used + ${data.stats.expired} Expired`}
           </button>
         </div>
       </div>
 
-      {/* ── PAGINATED INVENTORY LEDGER TABLE ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ PAGINATED INVENTORY LEDGER TABLE Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="sa-glass-card" style={{ marginTop: 24 }}>
         <div className="sa-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h3 className="sa-card-title">Voucher Inventory Ledger</h3>
             <p className="sa-card-sub">
-              Showing {fromRecord}–{toRecord} of {totalMatching} vouchers
+              Showing {fromRecord}Ã¢â‚¬â€œ{toRecord} of {totalMatching} vouchers
             </p>
           </div>
 
@@ -1471,8 +1471,8 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                           {v.status === 'expired' ? 'Expired' : v.is_used ? 'Used' : 'Available'}
                         </span>
                       </td>
-                      <td>{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
-                      <td>{v.used_at ? new Date(v.used_at).toLocaleString() : '—'}</td>
+                      <td>{v.created_at ? new Date(v.created_at).toLocaleDateString() : 'Ã¢â‚¬â€'}</td>
+                      <td>{v.used_at ? new Date(v.used_at).toLocaleString() : 'Ã¢â‚¬â€'}</td>
                       <td style={{ textAlign: 'right' }}>
                         {!v.is_used && (
                           <button
@@ -1486,7 +1486,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                             }}
                             title="Delete voucher"
                           >
-                            ✕ Delete
+                            Ã¢Å“â€¢ Delete
                           </button>
                         )}
                       </td>
@@ -1518,7 +1518,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   onClick={() => setPage(1)}
                   style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
                 >
-                  « First
+                  Ã‚Â« First
                 </button>
                 <button
                   type="button"
@@ -1527,7 +1527,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page <= 1 ? 0.4 : 1 }}
                 >
-                  ‹ Prev
+                  Ã¢â‚¬Â¹ Prev
                 </button>
 
                 <span style={{
@@ -1548,7 +1548,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   style={{ padding: '6px 12px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
                 >
-                  Next ›
+                  Next Ã¢â‚¬Âº
                 </button>
                 <button
                   type="button"
@@ -1557,7 +1557,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                   onClick={() => setPage(totalPages)}
                   style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: page >= totalPages ? 0.4 : 1 }}
                 >
-                  Last »
+                  Last Ã‚Â»
                 </button>
               </div>
             </div>
@@ -1619,6 +1619,11 @@ export default function SuperAdminPage() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
+  // Auto Setup
+  const [autoSetupLoading, setAutoSetupLoading] = useState(false);
+  const [autoSetupResult, setAutoSetupResult] = useState(null);
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+
   // Polling Mode
   const [pollingConfig, setPollingConfig] = useState({
     enabled: false, secret: '', interval: 10,
@@ -1678,7 +1683,7 @@ export default function SuperAdminPage() {
   const [copiedPin, setCopiedPin] = useState('');
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
-  const formatPrice = (a) => '₦' + Number(a || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatPrice = (a) => 'Ã¢â€šÂ¦' + Number(a || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatBytes = (bytes) => {
     if (!bytes || bytes === '0') return '0 B';
     const n = Number(bytes);
@@ -1725,7 +1730,7 @@ export default function SuperAdminPage() {
     setAuthed(false); setToken(''); setUsername(''); setPassword('');
   };
 
-  // ── Data Fetchers ──────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Data Fetchers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   const fetchCoreData = useCallback(async () => {
     if (!token) return;
@@ -1820,8 +1825,8 @@ export default function SuperAdminPage() {
       const data = await res.json();
       setTestResult(data);
       if (!silent) {
-        if (data.connected) showToast('✅ Router Connected!');
-        else showToast(data.error ? `⚠️ ${data.error}` : '⚠️ Connection failed');
+        if (data.connected) showToast('Ã¢Å“â€¦ Router Connected!');
+        else showToast(data.error ? `Ã¢Å¡Â Ã¯Â¸Â ${data.error}` : 'Ã¢Å¡Â Ã¯Â¸Â Connection failed');
       }
     } catch (err) {
       setTestResult({ connected: false, error: err.message });
@@ -1845,7 +1850,7 @@ export default function SuperAdminPage() {
     else if (activeTab === 'network') fetchNetworkHealth();
   }, [activeTab, authed, token, fetchRouterUsers, fetchRouterProfiles, fetchNetworkHealth]);
 
-  // ── Action Handlers ────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Action Handlers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   const saveMikrotik = async () => {
     if (actionLockRef.current) return;
@@ -1884,8 +1889,8 @@ export default function SuperAdminPage() {
         method: 'POST', headers: adminHeaders(),
         body: JSON.stringify({ key: 'mikrotik', value: updatedForm }),
       });
-      if (res.ok) { showToast('✅ MikroTik settings saved!'); handleTestMikrotik(); }
-      else showToast('❌ Failed to save');
+      if (res.ok) { showToast('Ã¢Å“â€¦ MikroTik settings saved!'); handleTestMikrotik(); }
+      else showToast('Ã¢ÂÅ’ Failed to save');
     } catch { showToast('Network error'); }
     finally {
       actionLockRef.current = false;
@@ -1907,7 +1912,7 @@ export default function SuperAdminPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`✅ ${data.message || 'Hotspot domain configured on router!'}`);
+        showToast(`Ã¢Å“â€¦ ${data.message || 'Hotspot domain configured on router!'}`);
       } else {
         showToast(data.error || 'Failed to sync hotspot domain');
       }
@@ -1927,8 +1932,8 @@ export default function SuperAdminPage() {
         method: 'POST', headers: adminHeaders(),
         body: JSON.stringify({ key: 'flutterwave', value: flutterwaveForm }),
       });
-      if (res.ok) showToast('✅ Flutterwave saved!');
-      else showToast('❌ Failed to save');
+      if (res.ok) showToast('Ã¢Å“â€¦ Flutterwave saved!');
+      else showToast('Ã¢ÂÅ’ Failed to save');
     } catch { showToast('Network error'); }
     finally {
       actionLockRef.current = false;
@@ -2017,10 +2022,10 @@ export default function SuperAdminPage() {
       if (res.ok) {
         setGenResult(data);
         setGeneratedVouchers(data.vouchers || []);
-        showToast(`✅ Generated ${data.generated} vouchers (${data.failed} failed)`);
+        showToast(`Ã¢Å“â€¦ Generated ${data.generated} vouchers (${data.failed} failed)`);
         fetchCoreData();
       } else {
-        showToast('❌ ' + (data.details || data.error || 'Generation failed'));
+        showToast('Ã¢ÂÅ’ ' + (data.details || data.error || 'Generation failed'));
       }
     } catch (err) { showToast('Error: ' + err.message); }
     finally { setGenLoading(false); }
@@ -2170,9 +2175,9 @@ export default function SuperAdminPage() {
 
   const maxDayRevenue = stats.dailySales.reduce((max, d) => Math.max(max, d.revenue), 100);
 
-  // ═══════════════════════════════════════════════════════════
+  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
   // LOGIN SCREEN
-  // ═══════════════════════════════════════════════════════════
+  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
   if (!authed) {
     return (
       <div className="sa-login-wrap">
@@ -2193,7 +2198,7 @@ export default function SuperAdminPage() {
             </div>
             <div className="sa-input-group">
               <label>Administrator Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••••••" autoComplete="current-password" required />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢" autoComplete="current-password" required />
             </div>
             <button type="submit" className="sa-login-submit" disabled={authLoading}>
               {authLoading ? 'Verifying...' : 'Authenticate & Enter'}
@@ -2207,9 +2212,9 @@ export default function SuperAdminPage() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
+  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
   // MAIN ADMIN INTERFACE
-  // ═══════════════════════════════════════════════════════════
+  // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
   return (
     <div className="sa-shell">
       {/* Mobile overlay */}
@@ -2297,7 +2302,7 @@ export default function SuperAdminPage() {
           </div>
         </header>
 
-        {/* ═══ TAB: DASHBOARD ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: DASHBOARD Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'dashboard' && (
           <div className="sa-tab-body">
             <div className="sa-kpi-grid">
@@ -2383,7 +2388,7 @@ export default function SuperAdminPage() {
                     <div key={item.name} className="sa-dist-row">
                       <div className="sa-dist-meta">
                         <span className="sa-dist-name">{item.name}</span>
-                        <span className="sa-dist-count">{item.count} sold ({item.percentage}%) • {formatPrice(item.revenue)}</span>
+                        <span className="sa-dist-count">{item.count} sold ({item.percentage}%) Ã¢â‚¬Â¢ {formatPrice(item.revenue)}</span>
                       </div>
                       <div className="sa-dist-track">
                         <div className="sa-dist-fill" style={{ width: `${item.percentage}%`, background: ['#7257FF','#10B981','#FFB84C','#3B82F6','#EC4899'][idx % 5] }} />
@@ -2403,7 +2408,7 @@ export default function SuperAdminPage() {
                     <p className="sa-card-sub">Live RouterOS telemetry</p>
                   </div>
                   <button className="sa-btn-pill-small" onClick={() => handleTestMikrotik(false)} disabled={testLoading}>
-                    {testLoading ? 'Checking...' : '⚡ Test'}
+                    {testLoading ? 'Checking...' : 'Ã¢Å¡Â¡ Test'}
                   </button>
                 </div>
                 {testResult?.connected ? (
@@ -2431,7 +2436,7 @@ export default function SuperAdminPage() {
                   </div>
                 ) : (
                   <div className="sa-health-offline-banner">
-                    <div className="sa-offline-icon">⚠️</div>
+                    <div className="sa-offline-icon">Ã¢Å¡Â Ã¯Â¸Â</div>
                     <div>
                       <strong>Router unreachable at {mikrotikForm.ip}:{mikrotikForm.port}</strong>
                       <p>Check power, Ethernet, and REST API service.</p>
@@ -2451,18 +2456,18 @@ export default function SuperAdminPage() {
                 <div className="sa-services-list">
                   <div className="sa-service-row">
                     <div className="sa-service-info"><strong>Supabase</strong><span>Auth, Wallets, Vouchers</span></div>
-                    <span className="sa-badge sa-badge-success">● Active</span>
+                    <span className="sa-badge sa-badge-success">Ã¢â€”Â Active</span>
                   </div>
                   <div className="sa-service-row">
                     <div className="sa-service-info"><strong>MikroTik REST</strong><span>{mikrotikForm.ip}:{mikrotikForm.port}</span></div>
                     <span className={`sa-badge ${testResult?.connected ? 'sa-badge-success' : 'sa-badge-danger'}`}>
-                      {testResult?.connected ? '● Connected' : '○ Offline'}
+                      {testResult?.connected ? 'Ã¢â€”Â Connected' : 'Ã¢â€”â€¹ Offline'}
                     </span>
                   </div>
                   <div className="sa-service-row">
                     <div className="sa-service-info"><strong>Flutterwave</strong><span>Payment processing</span></div>
                     <span className={`sa-badge ${flutterwaveForm.enabled ? 'sa-badge-success' : 'sa-badge-warn'}`}>
-                      {flutterwaveForm.enabled ? '● Enabled' : '○ Disabled'}
+                      {flutterwaveForm.enabled ? 'Ã¢â€”Â Enabled' : 'Ã¢â€”â€¹ Disabled'}
                     </span>
                   </div>
                 </div>
@@ -2490,7 +2495,7 @@ export default function SuperAdminPage() {
                           <td>
                             <div className="sa-pin-chip" onClick={() => copyCode(v.voucher_code)} title="Copy">
                               <code>{v.voucher_code}</code>
-                              <span className="sa-copy-icon">{copiedPin === v.voucher_code ? '✓' : '📋'}</span>
+                              <span className="sa-copy-icon">{copiedPin === v.voucher_code ? 'Ã¢Å“â€œ' : 'Ã°Å¸â€œâ€¹'}</span>
                             </div>
                           </td>
                           <td className="sa-font-bold">{v.profile_name || 'Standard'}</td>
@@ -2507,14 +2512,14 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: FINANCE ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: FINANCE Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'finance' && (
           <div className="sa-tab-body">
             <FinanceTab adminHeaders={adminHeaders} formatPrice={formatPrice} showToast={showToast} />
           </div>
         )}
 
-        {/* ═══ TAB: LIVE SESSIONS ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: LIVE SESSIONS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'sessions' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -2527,7 +2532,7 @@ export default function SuperAdminPage() {
               </div>
               {sessions.length === 0 ? (
                 <div className="sa-empty-state">
-                  <div className="sa-empty-icon">📶</div>
+                  <div className="sa-empty-icon">Ã°Å¸â€œÂ¶</div>
                   <h4>No Active Sessions</h4>
                   <p>Sessions appear when users enter voucher PINs on the captive portal.</p>
                 </div>
@@ -2554,7 +2559,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: VOUCHER FACTORY ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: VOUCHER FACTORY Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'vouchers' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -2579,7 +2584,7 @@ export default function SuperAdminPage() {
                     placeholder="e.g. 1 Day Pass" />
                 </div>
                 <div className="sa-field-box">
-                  <label>Price (₦)</label>
+                  <label>Price (Ã¢â€šÂ¦)</label>
                   <input type="number" value={voucherGen.price}
                     onChange={e => setVoucherGen({ ...voucherGen, price: e.target.value })} />
                 </div>
@@ -2632,7 +2637,7 @@ export default function SuperAdminPage() {
 
               <div className="sa-plan-form-footer">
                 <button className="sa-btn-primary sa-btn-lg" onClick={handleGenerateVouchers} disabled={genLoading}>
-                  {genLoading ? `Generating ${voucherGen.quantity} vouchers...` : `🎟️ Generate ${voucherGen.quantity} Vouchers`}
+                  {genLoading ? `Generating ${voucherGen.quantity} vouchers...` : `Ã°Å¸Å½Å¸Ã¯Â¸Â Generate ${voucherGen.quantity} Vouchers`}
                 </button>
               </div>
             </div>
@@ -2643,12 +2648,12 @@ export default function SuperAdminPage() {
                 <div className="sa-card-header">
                   <div>
                     <h3 className="sa-card-title">Generated Vouchers</h3>
-                    <p className="sa-card-sub">{genResult.generated} created • {genResult.expiry_label} expiry • {genResult.limit_uptime} uptime</p>
+                    <p className="sa-card-sub">{genResult.generated} created Ã¢â‚¬Â¢ {genResult.expiry_label} expiry Ã¢â‚¬Â¢ {genResult.limit_uptime} uptime</p>
                   </div>
                   <div className="sa-header-actions">
                     {generatedVouchers.length > 0 && (
                       <button className="sa-btn-pill-small" onClick={copyAllVouchers}>
-                        📋 Copy All Codes
+                        Ã°Å¸â€œâ€¹ Copy All Codes
                       </button>
                     )}
                     <span className="sa-badge sa-badge-success">{genResult.generated} Success</span>
@@ -2662,7 +2667,7 @@ export default function SuperAdminPage() {
                       <div key={i} className="sa-voucher-card-mini" onClick={() => copyCode(v.code)}>
                         <div className="sa-voucher-card-code">
                           <code>{v.code}</code>
-                          <span className="sa-copy-icon">{copiedPin === v.code ? '✓' : '📋'}</span>
+                          <span className="sa-copy-icon">{copiedPin === v.code ? 'Ã¢Å“â€œ' : 'Ã°Å¸â€œâ€¹'}</span>
                         </div>
                         <div className="sa-voucher-card-meta">
                           <span>{v.expiry}</span>
@@ -2677,7 +2682,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: FALLBACK VOUCHER POOL ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: FALLBACK VOUCHER POOL Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'fallback-vouchers' && (
           <FallbackVouchersTab
             adminHeaders={adminHeaders}
@@ -2686,7 +2691,7 @@ export default function SuperAdminPage() {
           />
         )}
 
-        {/* ═══ TAB: ROUTER USERS ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: ROUTER USERS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'router-users' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -2697,7 +2702,7 @@ export default function SuperAdminPage() {
                 </div>
                 <div className="sa-header-actions">
                   <button className="sa-btn-pill-small" onClick={fetchRouterUsers} disabled={routerUsersLoading}>
-                    {routerUsersLoading ? 'Loading...' : '🔄 Refresh'}
+                    {routerUsersLoading ? 'Loading...' : 'Ã°Å¸â€â€ž Refresh'}
                   </button>
                   <span className="sa-badge sa-badge-purple">{routerUsers.length} Users</span>
                 </div>
@@ -2739,7 +2744,7 @@ export default function SuperAdminPage() {
                 <div className="sa-empty-state"><div className="sa-loading-spinner" />Loading router users...</div>
               ) : filteredUsers.length === 0 ? (
                 <div className="sa-empty-state">
-                  <div className="sa-empty-icon">👤</div>
+                  <div className="sa-empty-icon">Ã°Å¸â€˜Â¤</div>
                   <h4>No Users Found</h4>
                   <p>{userSearch ? 'No matches for your search.' : 'No hotspot users on the router.'}</p>
                 </div>
@@ -2753,7 +2758,7 @@ export default function SuperAdminPage() {
                           <td className="sa-font-bold">{u.name}</td>
                           <td><span className="sa-profile-pill">{u.profile || 'default'}</span></td>
                           <td>{u['limit-uptime'] || 'Unlimited'}</td>
-                          <td className="sa-color-muted" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.comment || '—'}</td>
+                          <td className="sa-color-muted" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.comment || 'Ã¢â‚¬â€'}</td>
                           <td>
                             <div className="sa-actions-flex">
                               <button className="sa-btn-action-edit" title="Edit" onClick={() => {
@@ -2777,7 +2782,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: HOTSPOT PROFILES ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: HOTSPOT PROFILES Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'profiles' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -2849,7 +2854,7 @@ export default function SuperAdminPage() {
                 </div>
                 <div className="sa-header-actions">
                   <button className="sa-btn-pill-small" onClick={fetchRouterProfiles} disabled={profilesLoading}>
-                    {profilesLoading ? 'Loading...' : '🔄 Refresh'}
+                    {profilesLoading ? 'Loading...' : 'Ã°Å¸â€â€ž Refresh'}
                   </button>
                   <span className="sa-badge">{routerProfiles.length} Profiles</span>
                 </div>
@@ -2859,7 +2864,7 @@ export default function SuperAdminPage() {
                 <div className="sa-empty-state"><div className="sa-loading-spinner" />Loading profiles...</div>
               ) : routerProfiles.length === 0 ? (
                 <div className="sa-empty-state">
-                  <div className="sa-empty-icon">⚙️</div>
+                  <div className="sa-empty-icon">Ã¢Å¡â„¢Ã¯Â¸Â</div>
                   <h4>No Profiles Found</h4>
                   <p>Create a profile above to define bandwidth and session rules.</p>
                 </div>
@@ -2897,7 +2902,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: INTERNET PLANS ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: INTERNET PLANS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'plans' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -2917,8 +2922,8 @@ export default function SuperAdminPage() {
               <div className="sa-form-grid-3">
                 <div className="sa-field-box"><label>Plan ID *</label><input value={planForm.id} onChange={e => setPlanForm({ ...planForm, id: e.target.value })} placeholder="e.g. 1-Hour-Pass" disabled={!!editingPlan} /></div>
                 <div className="sa-field-box"><label>Display Name *</label><input value={planForm.name} onChange={e => setPlanForm({ ...planForm, name: e.target.value })} placeholder="e.g. 1 Hour Unlimited" /></div>
-                <div className="sa-field-box"><label>Speed / Spec</label><input value={planForm.speed} onChange={e => setPlanForm({ ...planForm, speed: e.target.value })} placeholder="e.g. 12Mbps • 1 Device" /></div>
-                <div className="sa-field-box"><label>Price (₦) *</label><input type="number" value={planForm.price} onChange={e => setPlanForm({ ...planForm, price: e.target.value })} placeholder="100" /></div>
+                <div className="sa-field-box"><label>Speed / Spec</label><input value={planForm.speed} onChange={e => setPlanForm({ ...planForm, speed: e.target.value })} placeholder="e.g. 12Mbps Ã¢â‚¬Â¢ 1 Device" /></div>
+                <div className="sa-field-box"><label>Price (Ã¢â€šÂ¦) *</label><input type="number" value={planForm.price} onChange={e => setPlanForm({ ...planForm, price: e.target.value })} placeholder="100" /></div>
                 <div className="sa-field-box"><label>Duration *</label><input value={planForm.duration} onChange={e => setPlanForm({ ...planForm, duration: e.target.value })} placeholder="e.g. 1h, 24h, 7d" /></div>
                 <div className="sa-field-box"><label>Devices (shared-users)</label><input type="number" min="1" max="10" value={planForm.devices} onChange={e => setPlanForm({ ...planForm, devices: e.target.value })} /></div>
                 <div className="sa-field-box"><label>Upload Speed</label><input value={planForm.upload_speed} onChange={e => setPlanForm({ ...planForm, upload_speed: e.target.value })} placeholder="12M" /></div>
@@ -2951,7 +2956,7 @@ export default function SuperAdminPage() {
                         <td>{p.duration}</td>
                         <td>{p.devices || 1} Device{(p.devices || 1) > 1 ? 's' : ''}</td>
                         <td className="sa-color-muted">{p.upload_speed || '12M'}/{p.download_speed || '12M'}</td>
-                        <td>{p.popular ? <span className="sa-badge sa-badge-purple">★ Popular</span> : <span className="sa-color-muted">—</span>}</td>
+                        <td>{p.popular ? <span className="sa-badge sa-badge-purple">Ã¢Ëœâ€¦ Popular</span> : <span className="sa-color-muted">Ã¢â‚¬â€</span>}</td>
                         <td>
                           <div className="sa-actions-flex">
                             <button className="sa-btn-action-edit" onClick={() => startEditPlan(p)}><EditPencilIcon size={16} color="#141417" /></button>
@@ -2967,7 +2972,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: NETWORK HEALTH ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: NETWORK HEALTH Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'network' && (
           <div className="sa-tab-body">
             {/* System Health Sensors */}
@@ -2978,7 +2983,7 @@ export default function SuperAdminPage() {
                   <p className="sa-card-sub">Hardware telemetry from <code>/system/health</code></p>
                 </div>
                 <button className="sa-btn-pill-small" onClick={fetchNetworkHealth} disabled={networkLoading}>
-                  {networkLoading ? 'Loading...' : '🔄 Refresh'}
+                  {networkLoading ? 'Loading...' : 'Ã°Å¸â€â€ž Refresh'}
                 </button>
               </div>
               {networkData.health.length === 0 ? (
@@ -3014,15 +3019,15 @@ export default function SuperAdminPage() {
                       {networkData.interfaces.map(iface => (
                         <tr key={iface['.id'] || iface.name}>
                           <td className="sa-font-bold">{iface.name}</td>
-                          <td>{iface.type || '—'}</td>
+                          <td>{iface.type || 'Ã¢â‚¬â€'}</td>
                           <td>
                             <span className={`sa-badge ${iface.running === 'true' || iface.running === true ? 'sa-badge-success' : 'sa-badge-danger'}`}>
-                              {iface.running === 'true' || iface.running === true ? '● Up' : '○ Down'}
+                              {iface.running === 'true' || iface.running === true ? 'Ã¢â€”Â Up' : 'Ã¢â€”â€¹ Down'}
                             </span>
                           </td>
                           <td>{formatBytes(iface['tx-byte'])}</td>
                           <td>{formatBytes(iface['rx-byte'])}</td>
-                          <td><code className="sa-mac-code">{iface['mac-address'] || '—'}</code></td>
+                          <td><code className="sa-mac-code">{iface['mac-address'] || 'Ã¢â‚¬â€'}</code></td>
                         </tr>
                       ))}
                     </tbody>
@@ -3051,13 +3056,13 @@ export default function SuperAdminPage() {
                         <tr key={l['.id']}>
                           <td className="sa-font-bold">{l.address}</td>
                           <td><code className="sa-mac-code">{l['mac-address']}</code></td>
-                          <td>{l['host-name'] || '—'}</td>
+                          <td>{l['host-name'] || 'Ã¢â‚¬â€'}</td>
                           <td>
                             <span className={`sa-badge ${l.status === 'bound' ? 'sa-badge-success' : 'sa-badge-warn'}`}>
                               {l.status || 'unknown'}
                             </span>
                           </td>
-                          <td className="sa-color-muted">{l.server || '—'}</td>
+                          <td className="sa-color-muted">{l.server || 'Ã¢â‚¬â€'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3092,34 +3097,26 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: MIKROTIK CONFIG ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: MIKROTIK CONFIG Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'mikrotik' && (
           <div className="sa-tab-body">
+
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Section 1: Connection Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className="sa-glass-card">
               <div className="sa-card-header">
                 <div>
-                  <h3 className="sa-card-title">MikroTik RouterOS REST API</h3>
-                  <p className="sa-card-sub">Connection parameters stored in Supabase</p>
+                  <h3 className="sa-card-title">Ã°Å¸â€Å’ Router Connection</h3>
+                  <p className="sa-card-sub">MikroTik RouterOS REST API connection settings</p>
                 </div>
                 <span className={`sa-badge ${testResult?.connected ? 'sa-badge-success' : 'sa-badge-danger'}`}>
-                  {testResult?.connected ? '● Connected' : '○ Offline'}
+                  {testResult?.connected ? 'Ã¢â€”Â Connected' : 'Ã¢â€”â€¹ Offline'}
                 </span>
               </div>
               <div className="sa-form-grid-2">
-                <div className="sa-field-box"><label>Router IP / Hostname *</label><input value={mikrotikForm.ip} onChange={e => setMikrotikForm({ ...mikrotikForm, ip: e.target.value })} placeholder="192.168.88.1" /></div>
-                <div className="sa-field-box"><label>REST API Port *</label><input value={mikrotikForm.port} onChange={e => setMikrotikForm({ ...mikrotikForm, port: e.target.value })} placeholder="443" /></div>
+                <div className="sa-field-box"><label>Router IP / Hostname *</label><input value={mikrotikForm.ip} onChange={e => setMikrotikForm({ ...mikrotikForm, ip: e.target.value })} placeholder="187.7.22.89" /></div>
+                <div className="sa-field-box"><label>REST API Port *</label><input value={mikrotikForm.port} onChange={e => setMikrotikForm({ ...mikrotikForm, port: e.target.value })} placeholder="8443" /></div>
                 <div className="sa-field-box"><label>API Username *</label><input value={mikrotikForm.user} onChange={e => setMikrotikForm({ ...mikrotikForm, user: e.target.value })} placeholder="admin" /></div>
-                <div className="sa-field-box"><label>API Password</label><input type="password" value={mikrotikForm.pass} onChange={e => setMikrotikForm({ ...mikrotikForm, pass: e.target.value })} placeholder="••••••••" /></div>
-                <div className="sa-field-box">
-                  <label>Hotspot Portal Domain / URL (e.g. asuktech.net) *</label>
-                  <input value={mikrotikForm.hotspot_url || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, hotspot_url: e.target.value })} placeholder="asuktech.net" />
-                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Used for automatic 1-click user redirection and router profile DNS Name</span>
-                </div>
-                <div className="sa-field-box">
-                  <label>Wi-Fi Broadcast Name (SSID) *</label>
-                  <input value={mikrotikForm.wifi_ssid || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, wifi_ssid: e.target.value })} placeholder="Asuk Tech Wi-Fi" />
-                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Displayed to users on vouchers and connection instructions</span>
-                </div>
+                <div className="sa-field-box"><label>API Password</label><input type="password" value={mikrotikForm.pass} onChange={e => setMikrotikForm({ ...mikrotikForm, pass: e.target.value })} placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢" /></div>
               </div>
               <div className="sa-ssl-check-row">
                 <label className="sa-checkbox-label">
@@ -3127,10 +3124,70 @@ export default function SuperAdminPage() {
                   <span>Use SSL / HTTPS (self-signed router certificates supported)</span>
                 </label>
               </div>
-              <div className="sa-button-row" style={{ flexWrap: 'wrap', gap: 10 }}>
+              <div className="sa-button-row" style={{ gap: 10 }}>
                 <button className="sa-btn-primary" onClick={saveMikrotik}>Save Configuration</button>
                 <button className="sa-btn-outline" onClick={() => handleTestMikrotik(false)} disabled={testLoading}>
-                  {testLoading ? 'Testing...' : '⚡ Test Connection'}
+                  {testLoading ? 'Testing...' : 'Ã¢Å¡Â¡ Test Connection'}
+                </button>
+              </div>
+            </div>
+
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Section 2: Auto Setup Ã¢â€â‚¬Ã¢â€â‚¬ */}
+            <div className="sa-glass-card" style={{ marginTop: 24, border: '1.5px solid rgba(34,197,94,0.3)' }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">Ã¢Å¡Â¡ Auto Configure Router</h3>
+                  <p className="sa-card-sub">1-click setup Ã¢â‚¬â€ configures hotspot profiles, portal domain, and services on your router via the REST API</p>
+                </div>
+                {autoSetupResult && (
+                  <span className={`sa-badge ${autoSetupResult.all_ok ? 'sa-badge-success' : 'sa-badge-purple'}`}>
+                    {autoSetupResult.all_ok ? 'Ã¢Å“â€¦ All Configured' : 'Ã¢Å¡Â Ã¯Â¸Â Needs Attention'}
+                  </span>
+                )}
+              </div>
+
+              {/* Hotspot Domain & SSID Ã¢â‚¬â€ needed before auto setup */}
+              <div className="sa-form-grid-2" style={{ marginBottom: 16 }}>
+                <div className="sa-field-box">
+                  <label>Hotspot Portal Domain *</label>
+                  <input value={mikrotikForm.hotspot_url || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, hotspot_url: e.target.value })} placeholder="asuktech.net" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Captive portal redirect domain for the login page</span>
+                </div>
+                <div className="sa-field-box">
+                  <label>Wi-Fi Broadcast Name (SSID)</label>
+                  <input value={mikrotikForm.wifi_ssid || ''} onChange={e => setMikrotikForm({ ...mikrotikForm, wifi_ssid: e.target.value })} placeholder="Asuk Tech Wi-Fi" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Displayed on vouchers and connection instructions</span>
+                </div>
+              </div>
+
+              <div className="sa-button-row" style={{ gap: 10 }}>
+                <button
+                  className="sa-btn-primary"
+                  disabled={autoSetupLoading || !testResult?.connected}
+                  style={{ background: testResult?.connected ? 'linear-gradient(135deg, #22c55e, #16a34a)' : undefined, padding: '12px 28px', fontSize: '15px', fontWeight: 800 }}
+                  onClick={async () => {
+                    setAutoSetupLoading(true);
+                    try {
+                      // Save settings first
+                      await saveMikrotik();
+                      const res = await fetch('/api/mikrotik/auto-setup', {
+                        method: 'POST',
+                        headers: adminHeaders(),
+                      });
+                      const data = await res.json();
+                      setAutoSetupResult(data);
+                      if (data.success) {
+                        showToast(data.summary || 'Ã¢Å“â€¦ Router configured!');
+                      } else {
+                        showToast('Ã¢ÂÅ’ Setup failed: ' + (data.error || 'Unknown error'));
+                      }
+                    } catch (e) {
+                      showToast('Ã¢ÂÅ’ Network error: ' + e.message);
+                    }
+                    setAutoSetupLoading(false);
+                  }}
+                >
+                  {autoSetupLoading ? 'Ã¢ÂÂ³ Configuring Router...' : 'Ã¢Å¡Â¡ Auto Setup Router'}
                 </button>
                 <button
                   className="sa-btn-outline"
@@ -3138,342 +3195,50 @@ export default function SuperAdminPage() {
                   disabled={syncingHotspot}
                   style={{ borderColor: '#7257FF', color: '#7257FF', fontWeight: 700 }}
                 >
-                  {syncingHotspot ? 'Pushing...' : `🌐 Push "${mikrotikForm.hotspot_url || 'asuktech.net'}" to Router`}
-                </button>
-                <button
-                  className="sa-btn-outline"
-                  onClick={() => setShowTutorial(!showTutorial)}
-                  style={{ fontWeight: 600 }}
-                >
-                  {showTutorial ? '📖 Hide WinBox Guide' : '📖 WinBox Setup Guide'}
-                </button>
-              </div>
-            </div>
-
-            {/* ═══ MIKROTIK WINBOX SETUP GUIDE & TUTORIAL ═══ */}
-            {showTutorial && (
-              <MikroTikSetupGuide
-                mikrotikForm={mikrotikForm}
-                onSyncRouter={handleSyncHotspot}
-                isSyncing={syncingHotspot}
-              />
-            )}
-
-            {/* ═══ MIKROTIK DIAGNOSTICS & CONNECTION LOGS ═══ */}
-            <MikroTikDiagnosticsAndLogs
-              testResult={testResult}
-              testLoading={testLoading}
-              onTest={() => handleTestMikrotik(false)}
-              adminHeaders={adminHeaders}
-              showToast={showToast}
-            />
-
-            {/* ═══ POLLING MODE (Router-Initiated Connection) ═══ */}
-            <div className="sa-glass-card" style={{ marginTop: 24 }}>
-              <div className="sa-card-header">
-                <div>
-                  <h3 className="sa-card-title">🔄 Connection Mode</h3>
-                  <p className="sa-card-sub">Choose how Vercel communicates with your MikroTik router</p>
-                </div>
-                <span className={`sa-badge ${pollingConfig.enabled ? 'sa-badge-warning' : 'sa-badge-success'}`}>
-                  {pollingConfig.enabled ? '🔄 Polling Mode' : '⚡ Direct Mode'}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                <button
-                  className={`sa-btn-pill-small ${!pollingConfig.enabled ? 'sa-btn-primary' : 'sa-btn-outline'}`}
-                  onClick={async () => {
-                    const updated = { ...pollingConfig, enabled: false };
-                    setPollingConfig(updated);
-                    await fetch('/api/super-admin/settings', {
-                      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ key: 'polling_config', value: updated }),
-                    });
-                    showToast('⚡ Switched to Direct Mode');
-                  }}
-                >
-                  ⚡ Direct (API)
-                </button>
-                <button
-                  className={`sa-btn-pill-small ${pollingConfig.enabled ? 'sa-btn-primary' : 'sa-btn-outline'}`}
-                  onClick={async () => {
-                    // First check if the database table exists
-                    try {
-                      const setupRes = await fetch('/api/mikrotik/polling/setup', {
-                        method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                      });
-                      const setupData = await setupRes.json();
-                      if (setupData.needs_migration) {
-                        const ok = confirm(
-                          '⚠️ The polling database table needs to be created first.\n\n' +
-                          'Click OK to copy the SQL, then paste it in the Supabase SQL Editor.\n\n' +
-                          'Dashboard: ' + setupData.dashboard_url
-                        );
-                        if (ok) {
-                          navigator.clipboard.writeText(setupData.sql);
-                          window.open(setupData.dashboard_url, '_blank');
-                          showToast('📋 SQL copied! Paste it in the Supabase SQL Editor, click Run, then try enabling polling again.');
-                        }
-                        return;
-                      }
-                    } catch {}
-
-                    let secret = pollingConfig.secret;
-                    if (!secret) {
-                      secret = crypto.randomUUID();
-                    }
-                    const updated = { ...pollingConfig, enabled: true, secret };
-                    setPollingConfig(updated);
-                    await fetch('/api/super-admin/settings', {
-                      method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ key: 'polling_config', value: updated }),
-                    });
-                    showToast('🔄 Switched to Polling Mode — paste the script into your router');
-                  }}
-                >
-                  🔄 Polling (Router-Initiated)
+                  {syncingHotspot ? 'Pushing...' : `Ã°Å¸Å’Â Push "${mikrotikForm.hotspot_url || 'asuktech.net'}" to Router`}
                 </button>
               </div>
 
-              {!pollingConfig.enabled && (
-                <div style={{ padding: '12px 16px', background: 'rgba(34,197,94,0.08)', borderRadius: 10, border: '1px solid rgba(34,197,94,0.2)', fontSize: 13 }}>
-                  <strong>Direct Mode:</strong> Vercel connects directly to your router's REST API. Requires the router to be reachable from the internet (public IP or tunnel like ngrok).
+              {!testResult?.connected && (
+                <div style={{ marginTop: 12, padding: '10px 16px', background: 'rgba(239,68,68,0.08)', borderRadius: 10, fontSize: '12.5px', color: '#DC2626' }}>
+                  Ã¢Å¡Â Ã¯Â¸Â Connect to the router first Ã¢â‚¬â€ click "Test Connection" above to verify your connection.
                 </div>
               )}
 
-              {pollingConfig.enabled && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ padding: '12px 16px', background: 'rgba(234,179,8,0.08)', borderRadius: 10, border: '1px solid rgba(234,179,8,0.2)', fontSize: 13, marginBottom: 16 }}>
-                    <strong>Polling Mode Active:</strong> Your router checks Vercel every {pollingConfig.interval}s for new voucher requests. Works behind any ISP (MTN, Starlink, etc.) — no public IP needed!
-                  </div>
-
-                  <div className="sa-form-grid-2" style={{ marginBottom: 16 }}>
-                    <div className="sa-field-box">
-                      <label>Polling Secret</label>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input value={pollingConfig.secret || ''} readOnly style={{ fontFamily: 'monospace', fontSize: 12 }} />
-                        <button className="sa-btn-pill-small" onClick={() => {
-                          navigator.clipboard.writeText(pollingConfig.secret);
-                          setPollingSecretCopied(true);
-                          setTimeout(() => setPollingSecretCopied(false), 2000);
-                        }}>{pollingSecretCopied ? '✅ Copied' : '📋 Copy'}</button>
-                        <button className="sa-btn-pill-small" onClick={async () => {
-                          const newSecret = crypto.randomUUID();
-                          const updated = { ...pollingConfig, secret: newSecret };
-                          setPollingConfig(updated);
-                          await fetch('/api/super-admin/settings', {
-                            method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ key: 'polling_config', value: updated }),
-                          });
-                          showToast('🔑 New secret generated — re-paste the script into router');
-                        }}>🔑 Regenerate</button>
-                      </div>
-                    </div>
-                    <div className="sa-field-box">
-                      <label>Polling Interval (seconds)</label>
-                      <select
-                        value={pollingConfig.interval}
-                        onChange={async (e) => {
-                          const updated = { ...pollingConfig, interval: Number(e.target.value) };
-                          setPollingConfig(updated);
-                          await fetch('/api/super-admin/settings', {
-                            method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ key: 'polling_config', value: updated }),
-                          });
-                        }}
-                        style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'inherit' }}
-                      >
-                        <option value={5}>5 seconds (fastest)</option>
-                        <option value={10}>10 seconds (recommended)</option>
-                        <option value={15}>15 seconds</option>
-                        <option value={30}>30 seconds</option>
-                        <option value={60}>60 seconds</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Polling Status */}
-                  {pollingStatus && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
-                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: pollingStatus.router_online ? '#22c55e' : '#ef4444' }}>
-                          {pollingStatus.router_online ? '● Online' : '○ Offline'}
+              {/* Auto Setup Results */}
+              {autoSetupResult?.results && (
+                <div style={{ marginTop: 16 }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, marginBottom: 10, color: '#888' }}>Setup Results</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {autoSetupResult.results.map((r, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+                        background: r.status === 'ok' ? 'rgba(34,197,94,0.06)' : r.status === 'warn' ? 'rgba(245,158,11,0.06)' : 'rgba(255,255,255,0.03)',
+                        borderRadius: 8, border: `1px solid ${r.status === 'ok' ? 'rgba(34,197,94,0.2)' : r.status === 'warn' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                      }}>
+                        <span style={{ fontSize: '16px' }}>
+                          {r.status === 'ok' ? 'Ã¢Å“â€¦' : r.status === 'warn' ? 'Ã¢Å¡Â Ã¯Â¸Â' : r.status === 'skip' ? 'Ã¢ÂÂ­Ã¯Â¸Â' : 'Ã¢â€žÂ¹Ã¯Â¸Â'}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700 }}>{r.step}</div>
+                          <div style={{ fontSize: '11.5px', color: '#888' }}>{r.detail}</div>
                         </div>
-                        <div style={{ fontSize: 11, color: '#888' }}>Router</div>
                       </div>
-                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700 }}>{pollingStatus.stats?.pending || 0}</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>Pending</div>
-                      </div>
-                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>{pollingStatus.stats?.completed || 0}</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>Completed</div>
-                      </div>
-                      <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{pollingStatus.stats?.failed || 0}</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>Failed</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button className="sa-btn-outline" style={{ marginBottom: 12 }} onClick={async () => {
-                    try {
-                      const res = await fetch('/api/mikrotik/polling/status', { headers: adminHeaders() });
-                      if (res.ok) {
-                        setPollingStatus(await res.json());
-                        showToast('📊 Polling status refreshed');
-                      }
-                    } catch {}
-                  }}>📊 Refresh Polling Status</button>
-
-                  {/* RouterOS Script */}
-                  <div style={{ marginTop: 8 }}>
-                    <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📋 RouterOS Script — Paste into WinBox Terminal</h4>
-                    <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Copy this script and paste it into your MikroTik router via WinBox → Terminal. The router will automatically check for new voucher requests.</p>
-                    <div style={{ position: 'relative' }}>
-                      <pre style={{
-                        background: 'rgba(0,0,0,0.4)', color: '#22c55e', padding: 16, borderRadius: 10,
-                        fontSize: 11, lineHeight: 1.5, overflow: 'auto', maxHeight: 300,
-                        border: '1px solid rgba(34,197,94,0.2)', fontFamily: 'monospace', whiteSpace: 'pre-wrap',
-                      }}>{(() => {
-                        const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app';
-                        const cleanUrl = appUrl.replace(/\/+$/, '');
-                        const s = pollingConfig.secret || 'YOUR_SECRET';
-                        const interval = pollingConfig.interval || 10;
-                        return `# Asuk Tech Polling Agent for MikroTik RouterOS v7+
-# Paste this ENTIRE script into WinBox > Terminal
-
-/system script remove [find name="asuk-poll-agent"]
-/system script add name="asuk-poll-agent" policy=read,write,test,api source={
-  :local appUrl "${cleanUrl}/api/mikrotik/polling"
-  :local secret "${s}"
-  :do {
-    /tool fetch url=("\$appUrl\?action=fetch&secret=\$secret") dst-path="asuk-tasks.txt" mode=https as-value
-    :delay 1s
-    :local content [/file get "asuk-tasks.txt" contents]
-    /file remove "asuk-tasks.txt"
-    :if ([:find \$content "\\"code\\""] != nil) do={
-      :local pos 0
-      :while ([:find \$content "\\"id\\":\\"" \$pos] != nil) do={
-        :local idStart ([:find \$content "\\"id\\":\\"" \$pos] + 5)
-        :local idEnd [:find \$content "\\"" \$idStart]
-        :local taskId [:pick \$content \$idStart \$idEnd]
-        :local codeStart ([:find \$content "\\"code\\":\\"" \$pos] + 7)
-        :local codeEnd [:find \$content "\\"" \$codeStart]
-        :local code [:pick \$content \$codeStart \$codeEnd]
-        :local passStart ([:find \$content "\\"password\\":\\"" \$pos] + 11)
-        :local passEnd [:find \$content "\\"" \$passStart]
-        :local pass [:pick \$content \$passStart \$passEnd]
-        :local profStart ([:find \$content "\\"profile\\":\\"" \$pos] + 10)
-        :local profEnd [:find \$content "\\"" \$profStart]
-        :local profile [:pick \$content \$profStart \$profEnd]
-        :local uptimeStart ([:find \$content "\\"limit_uptime\\":\\"" \$pos] + 16)
-        :local uptimeEnd [:find \$content "\\"" \$uptimeStart]
-        :local uptime [:pick \$content \$uptimeStart \$uptimeEnd]
-        :local sharedStart ([:find \$content "\\"shared_users\\":\\"" \$pos] + 15)
-        :local sharedEnd [:find \$content "\\"" \$sharedStart]
-        :local shared [:pick \$content \$sharedStart \$sharedEnd]
-        :do {
-          /ip hotspot user add name=\$code password=\$pass profile=\$profile limit-uptime=\$uptime shared-users=\$shared
-          :log info ("Asuk: Created " . \$code)
-          :local pd ("{ \\"secret\\":\\"\$secret\\", \\"task_id\\":\\"\$taskId\\", \\"status\\":\\"completed\\"}")
-          /tool fetch url=\$appUrl mode=https http-method=post http-header-field="Content-Type: application/json" http-data=\$pd dst-path="asuk-r.txt" as-value
-          /file remove "asuk-r.txt"
-        } on-error={
-          :log warning ("Asuk: Failed " . \$code)
-        }
-        :set pos (\$idEnd + 1)
-      }
-    }
-  } on-error={ :log warning "Asuk: Poll failed" }
-}
-
-/system scheduler remove [find name="asuk-poll-schedule"]
-/system scheduler add name="asuk-poll-schedule" interval=${interval}s on-event="/system script run asuk-poll-agent" policy=read,write,test,api
-
-:put "Done! Router checks for vouchers every ${interval}s."`;
-                      })()}</pre>
-                      <button
-                        className="sa-btn-primary"
-                        style={{ position: 'absolute', top: 8, right: 8, fontSize: 12, padding: '6px 14px' }}
-                        onClick={() => {
-                          const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                          const cleanUrl = appUrl.replace(/\/+$/, '');
-                          const s = pollingConfig.secret || 'YOUR_SECRET';
-                          const interval = pollingConfig.interval || 10;
-                          const script = `/system script remove [find name="asuk-poll-agent"]
-/system script add name="asuk-poll-agent" policy=read,write,test,api source={
-  :local appUrl "${cleanUrl}/api/mikrotik/polling"
-  :local secret "${s}"
-  :do {
-    /tool fetch url=("\\$appUrl\\?action=fetch&secret=\\$secret") dst-path="asuk-tasks.txt" mode=https as-value
-    :delay 1s
-    :local content [/file get "asuk-tasks.txt" contents]
-    /file remove "asuk-tasks.txt"
-    :if ([:find \\$content "\\\\\"code\\\\\""] != nil) do={
-      :local pos 0
-      :while ([:find \\$content "\\\\\"id\\\\\":\\\\\"" \\$pos] != nil) do={
-        :local idStart ([:find \\$content "\\\\\"id\\\\\":\\\\\"" \\$pos] + 5)
-        :local idEnd [:find \\$content "\\\\\"" \\$idStart]
-        :local taskId [:pick \\$content \\$idStart \\$idEnd]
-        :local codeStart ([:find \\$content "\\\\\"code\\\\\":\\\\\"" \\$pos] + 7)
-        :local codeEnd [:find \\$content "\\\\\"" \\$codeStart]
-        :local code [:pick \\$content \\$codeStart \\$codeEnd]
-        :local passStart ([:find \\$content "\\\\\"password\\\\\":\\\\\"" \\$pos] + 11)
-        :local passEnd [:find \\$content "\\\\\"" \\$passStart]
-        :local pass [:pick \\$content \\$passStart \\$passEnd]
-        :local profStart ([:find \\$content "\\\\\"profile\\\\\":\\\\\"" \\$pos] + 10)
-        :local profEnd [:find \\$content "\\\\\"" \\$profStart]
-        :local profile [:pick \\$content \\$profStart \\$profEnd]
-        :local uptimeStart ([:find \\$content "\\\\\"limit_uptime\\\\\":\\\\\"" \\$pos] + 16)
-        :local uptimeEnd [:find \\$content "\\\\\"" \\$uptimeStart]
-        :local uptime [:pick \\$content \\$uptimeStart \\$uptimeEnd]
-        :local sharedStart ([:find \\$content "\\\\\"shared_users\\\\\":\\\\\"" \\$pos] + 15)
-        :local sharedEnd [:find \\$content "\\\\\"" \\$sharedStart]
-        :local shared [:pick \\$content \\$sharedStart \\$sharedEnd]
-        :do {
-          /ip hotspot user add name=\\$code password=\\$pass profile=\\$profile limit-uptime=\\$uptime shared-users=\\$shared
-          :log info ("Asuk: Created " . \\$code)
-          :local pd ("{ \\\\\"secret\\\\\":\\\\\"\\$secret\\\\\", \\\\\"task_id\\\\\":\\\\\"\\$taskId\\\\\", \\\\\"status\\\\\":\\\\\"completed\\\\\"}")
-          /tool fetch url=\\$appUrl mode=https http-method=post http-header-field="Content-Type: application/json" http-data=\\$pd dst-path="asuk-r.txt" as-value
-          /file remove "asuk-r.txt"
-        } on-error={
-          :log warning ("Asuk: Failed " . \\$code)
-        }
-        :set pos (\\$idEnd + 1)
-      }
-    }
-  } on-error={ :log warning "Asuk: Poll failed" }
-}
-
-/system scheduler remove [find name="asuk-poll-schedule"]
-/system scheduler add name="asuk-poll-schedule" interval=${interval}s on-event="/system script run asuk-poll-agent" policy=read,write,test,api
-
-:put "Done! Router checks for vouchers every ${interval}s."`;
-                          navigator.clipboard.writeText(script);
-                          setPollingScriptCopied(true);
-                          setTimeout(() => setPollingScriptCopied(false), 3000);
-                          showToast('📋 Script copied! Paste into WinBox → Terminal');
-                        }}
-                      >
-                        {pollingScriptCopied ? '✅ Copied!' : '📋 Copy Script'}
-                      </button>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Hotspot Sharing Control */}
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Section 3: Hotspot Settings Ã¢â€â‚¬Ã¢â€â‚¬ */}
             <div className="sa-glass-card" style={{ marginTop: 24 }}>
               <div className="sa-card-header">
                 <div>
-                  <h3 className="sa-card-title">Hotspot Device Sharing</h3>
-                  <p className="sa-card-sub">Control whether vouchers allow multiple simultaneous device connections</p>
+                  <h3 className="sa-card-title">Ã¢Å¡â„¢Ã¯Â¸Â Hotspot Settings</h3>
+                  <p className="sa-card-sub">Device sharing, speed limits, and voucher expiry behaviour</p>
                 </div>
                 <span className={`sa-badge ${hotspotSettings.sharing_enabled ? 'sa-badge-success' : 'sa-badge-danger'}`}>
-                  {hotspotSettings.sharing_enabled ? '● Sharing ON' : '○ Sharing OFF'}
+                  {hotspotSettings.sharing_enabled ? 'Ã¢â€”Â Sharing ON' : 'Ã¢â€”â€¹ Sharing OFF'}
                 </span>
               </div>
               <div className="sa-form-grid-2">
@@ -3483,7 +3248,7 @@ export default function SuperAdminPage() {
                     <label className="sa-checkbox-label">
                       <input type="checkbox" checked={hotspotSettings.sharing_enabled}
                         onChange={e => setHotspotSettings({ ...hotspotSettings, sharing_enabled: e.target.checked })} />
-                      <span>{hotspotSettings.sharing_enabled ? 'Enabled — plans use their own device count' : 'Disabled — all vouchers forced to 1 device'}</span>
+                      <span>{hotspotSettings.sharing_enabled ? 'Enabled Ã¢â‚¬â€ plans use their own device count' : 'Disabled Ã¢â‚¬â€ all vouchers forced to 1 device'}</span>
                     </label>
                   </div>
                 </div>
@@ -3507,89 +3272,110 @@ export default function SuperAdminPage() {
               </div>
 
               {/* Voucher Expiry Mode */}
-              <div className="sa-glass-card" style={{ marginTop: 16, background: 'rgba(114, 87, 255, 0.06)', border: '1px solid rgba(114, 87, 255, 0.18)' }}>
-                <div className="sa-card-header">
+              <div style={{ marginTop: 16, padding: '16px 20px', background: 'rgba(114, 87, 255, 0.06)', borderRadius: 14, border: '1px solid rgba(114, 87, 255, 0.18)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div>
-                    <h3 className="sa-card-title" style={{ fontSize: '0.95rem' }}>⏱️ Voucher Expiry Mode</h3>
-                    <p className="sa-card-sub">Controls how MikroTik counts voucher time when user disconnects from Wi-Fi</p>
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>Ã¢ÂÂ±Ã¯Â¸Â Voucher Expiry Mode</h4>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#888' }}>How MikroTik counts time when user disconnects from Wi-Fi</p>
                   </div>
                   <span className={`sa-badge ${hotspotSettings.expiry_mode === 'elapsed' ? 'sa-badge-purple' : 'sa-badge-success'}`}>
-                    {hotspotSettings.expiry_mode === 'elapsed' ? '⏰ Elapsed Time' : '⏸️ Paused Time'}
+                    {hotspotSettings.expiry_mode === 'elapsed' ? 'Ã¢ÂÂ° Elapsed' : 'Ã¢ÂÂ¸Ã¯Â¸Â Paused'}
                   </span>
                 </div>
-
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  {/* Elapsed Option */}
                   <div
                     onClick={() => setHotspotSettings({ ...hotspotSettings, expiry_mode: 'elapsed' })}
                     style={{
-                      flex: 1, minWidth: 220, padding: '16px', borderRadius: 14, cursor: 'pointer',
+                      flex: 1, minWidth: 200, padding: 14, borderRadius: 12, cursor: 'pointer',
                       background: hotspotSettings.expiry_mode === 'elapsed' ? 'rgba(114, 87, 255, 0.12)' : 'rgba(0,0,0,0.03)',
                       border: hotspotSettings.expiry_mode === 'elapsed' ? '2px solid #7257FF' : '1.5px solid rgba(0,0,0,0.12)',
-                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        border: hotspotSettings.expiry_mode === 'elapsed' ? '6px solid #7257FF' : '2px solid rgba(0,0,0,0.25)',
-                        background: hotspotSettings.expiry_mode === 'elapsed' ? '#7257FF' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {hotspotSettings.expiry_mode === 'elapsed' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
-                      </div>
-                      <strong style={{ fontSize: '0.95rem', color: '#1a1a2e' }}>⏰ Elapsed Time (Recommended)</strong>
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, paddingLeft: 30 }}>
-                      Countdown <strong style={{ color: 'rgba(0,0,0,0.75)' }}>continues running</strong> even when user disconnects from Wi-Fi. A 24-hour voucher expires exactly 24 hours after first login, regardless of usage. Uses MikroTik <code style={{ background: 'rgba(114,87,255,0.1)', padding: '2px 5px', borderRadius: 4, color: '#5b3cc4' }}>keepalive-timeout</code> matching the plan duration.
-                    </p>
+                    <strong style={{ fontSize: '13px' }}>Ã¢ÂÂ° Elapsed Time</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#888' }}>Timer runs continuously from first login. 1-hour voucher expires after 1 real hour regardless of disconnects.</p>
                   </div>
-
-                  {/* Paused Option */}
                   <div
                     onClick={() => setHotspotSettings({ ...hotspotSettings, expiry_mode: 'paused' })}
                     style={{
-                      flex: 1, minWidth: 220, padding: '16px', borderRadius: 14, cursor: 'pointer',
-                      background: hotspotSettings.expiry_mode === 'paused' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(0,0,0,0.03)',
-                      border: hotspotSettings.expiry_mode === 'paused' ? '2px solid #10B981' : '1.5px solid rgba(0,0,0,0.12)',
-                      transition: 'all 0.15s ease',
+                      flex: 1, minWidth: 200, padding: 14, borderRadius: 12, cursor: 'pointer',
+                      background: hotspotSettings.expiry_mode === 'paused' ? 'rgba(34,197,94,0.12)' : 'rgba(0,0,0,0.03)',
+                      border: hotspotSettings.expiry_mode === 'paused' ? '2px solid #22c55e' : '1.5px solid rgba(0,0,0,0.12)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        border: hotspotSettings.expiry_mode === 'paused' ? '6px solid #10B981' : '2px solid rgba(0,0,0,0.25)',
-                        background: hotspotSettings.expiry_mode === 'paused' ? '#10B981' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {hotspotSettings.expiry_mode === 'paused' && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
-                      </div>
-                      <strong style={{ fontSize: '0.95rem', color: '#1a1a2e' }}>⏸️ Paused Time</strong>
-                    </div>
-                    <p style={{ fontSize: '0.82rem', color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, paddingLeft: 30 }}>
-                      Countdown <strong style={{ color: 'rgba(0,0,0,0.75)' }}>pauses</strong> when user disconnects from Wi-Fi. A 24-hour voucher gives exactly 24 hours of active browsing time. Uses MikroTik default short <code style={{ background: 'rgba(16,185,129,0.1)', padding: '2px 5px', borderRadius: 4, color: '#0d7a54' }}>keepalive-timeout</code> (2 minutes).
-                    </p>
+                    <strong style={{ fontSize: '13px' }}>Ã¢ÂÂ¸Ã¯Â¸Â Paused Time</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#888' }}>Timer only counts while connected. User can disconnect and resume later. More generous for customers.</p>
                   </div>
                 </div>
               </div>
 
-              <div className="sa-button-row">
+              <div className="sa-button-row" style={{ marginTop: 16 }}>
                 <button className="sa-btn-primary" onClick={async () => {
                   try {
-                    const res = await fetch('/api/super-admin/settings', {
-                      method: 'POST', headers: adminHeaders(),
-                      body: JSON.stringify({ key: 'hotspot_settings', value: hotspotSettings }),
-                    });
-                    if (res.ok) showToast('✅ Hotspot sharing settings saved!');
-                    else showToast('❌ Failed to save');
+                    await supabaseClient.from('app_settings').upsert({
+                      key: 'hotspot_settings', value: hotspotSettings, updated_at: new Date().toISOString(),
+                    }, { onConflict: 'key' });
+                    showToast('Ã¢Å“â€¦ Hotspot settings saved!');
                   } catch { showToast('Network error'); }
                 }}>Save Hotspot Settings</button>
               </div>
             </div>
+
+            {/* Ã¢â€â‚¬Ã¢â€â‚¬ Section 4: Advanced (Collapsed) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+            <div className="sa-glass-card" style={{ marginTop: 24 }}>
+              <div
+                className="sa-card-header"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setShowAdvancedConfig(!showAdvancedConfig)}
+              >
+                <div>
+                  <h3 className="sa-card-title">Ã°Å¸â€Â§ Advanced Settings</h3>
+                  <p className="sa-card-sub">Manual setup guides, polling mode, diagnostics & connection logs</p>
+                </div>
+                <span style={{ fontSize: 20, color: '#888' }}>{showAdvancedConfig ? 'Ã¢â€“Â²' : 'Ã¢â€“Â¼'}</span>
+              </div>
+              {showAdvancedConfig && (
+                <div>
+                  {/* WinBox Setup Guide */}
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      className="sa-btn-outline"
+                      onClick={() => setShowTutorial(!showTutorial)}
+                      style={{ fontWeight: 600, width: '100%', justifyContent: 'center' }}
+                    >
+                      {showTutorial ? 'Ã°Å¸â€œâ€“ Hide WinBox Guide' : 'Ã°Å¸â€œâ€“ Show WinBox Setup Guide'}
+                    </button>
+                  </div>
+                  {showTutorial && (
+                    <MikroTikSetupGuide
+                      mikrotikForm={mikrotikForm}
+                      onSyncRouter={handleSyncHotspot}
+                      isSyncing={syncingHotspot}
+                    />
+                  )}
+
+                  {/* Connection Mode (Polling) */}
+                  <div style={{ marginTop: 20, padding: '16px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: 4 }}>Ã°Å¸â€â€ž Connection Mode</h4>
+                    <p style={{ fontSize: '12px', color: '#888', marginBottom: 12 }}>Current: <strong>{pollingConfig.enabled ? 'Polling (Router-Initiated)' : 'Direct (API)'}</strong></p>
+                    <p style={{ fontSize: '11.5px', color: '#666' }}>
+                      Direct mode is recommended when using a VPS tunnel. Polling mode is an alternative for when no VPS is available.
+                    </p>
+                  </div>
+
+                  {/* Diagnostics */}
+                  <div style={{ marginTop: 20 }}>
+                    <button className="sa-btn-outline" onClick={() => handleTestMikrotik(true)} disabled={testLoading} style={{ width: '100%', justifyContent: 'center' }}>
+                      {testLoading ? 'Running...' : 'Ã°Å¸â€Â Run Full Diagnostics'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* ═══ TAB: BRANDING & THEME ═══ */}
+
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: BRANDING & THEME Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'branding' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -3607,7 +3393,7 @@ export default function SuperAdminPage() {
                   {brandingForm.logo_url && <img src={brandingForm.logo_url} alt="" style={{ width: 28, height: 28, borderRadius: 8, marginRight: 10, verticalAlign: 'middle' }} />}
                   {brandingForm.app_name || 'Your App Name'}
                 </div>
-                <div className="sa-branding-preview-sub">Wi-Fi Hotspot • Live Preview</div>
+                <div className="sa-branding-preview-sub">Wi-Fi Hotspot Ã¢â‚¬Â¢ Live Preview</div>
               </div>
 
               <div className="sa-form-grid-2">
@@ -3628,8 +3414,8 @@ export default function SuperAdminPage() {
                       method: 'POST', headers: adminHeaders(),
                       body: JSON.stringify({ key: 'branding', value: brandingForm }),
                     });
-                    if (res.ok) showToast('✅ Branding saved! Refresh user app to see changes.');
-                    else showToast('❌ Failed to save branding');
+                    if (res.ok) showToast('Ã¢Å“â€¦ Branding saved! Refresh user app to see changes.');
+                    else showToast('Ã¢ÂÅ’ Failed to save branding');
                   } catch { showToast('Network error'); }
                 }}>Save Branding</button>
               </div>
@@ -3662,7 +3448,7 @@ export default function SuperAdminPage() {
           </div>
         )}
 
-        {/* ═══ TAB: PAYMENT GATEWAY ═══ */}
+        {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TAB: PAYMENT GATEWAY Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
         {activeTab === 'payments' && (
           <div className="sa-tab-body">
             <div className="sa-glass-card">
@@ -3672,7 +3458,7 @@ export default function SuperAdminPage() {
                   <p className="sa-card-sub">Card, USSD, and bank transfer payments</p>
                 </div>
                 <span className={`sa-badge ${flutterwaveForm.enabled ? 'sa-badge-success' : 'sa-badge-warn'}`}>
-                  {flutterwaveForm.enabled ? '● Active' : '○ Inactive'}
+                  {flutterwaveForm.enabled ? 'Ã¢â€”Â Active' : 'Ã¢â€”â€¹ Inactive'}
                 </span>
               </div>
               <div className="sa-form-grid-1">
@@ -3696,7 +3482,7 @@ export default function SuperAdminPage() {
               <div className="sa-card-header">
                 <div>
                   <h3 className="sa-card-title">Webhook Configuration</h3>
-                  <p className="sa-card-sub">Set this URL in your Flutterwave dashboard under Settings → Webhooks</p>
+                  <p className="sa-card-sub">Set this URL in your Flutterwave dashboard under Settings Ã¢â€ â€™ Webhooks</p>
                 </div>
               </div>
               <div className="sa-webhook-url-box">
@@ -3706,10 +3492,10 @@ export default function SuperAdminPage() {
                   setWebhookCopied(true);
                   showToast('Webhook URL copied!');
                   setTimeout(() => setWebhookCopied(false), 2000);
-                }}>{webhookCopied ? '✓ Copied' : '📋 Copy'}</button>
+                }}>{webhookCopied ? 'Ã¢Å“â€œ Copied' : 'Ã°Å¸â€œâ€¹ Copy'}</button>
               </div>
               <div className="sa-card-sub" style={{ padding: '0 4px', marginTop: 8 }}>
-                <strong>Instructions:</strong> Copy this URL and paste it in Flutterwave Dashboard → Settings → Webhooks → Webhook URL. The webhook verifies payments and auto-credits wallets.
+                <strong>Instructions:</strong> Copy this URL and paste it in Flutterwave Dashboard Ã¢â€ â€™ Settings Ã¢â€ â€™ Webhooks Ã¢â€ â€™ Webhook URL. The webhook verifies payments and auto-credits wallets.
               </div>
             </div>
           </div>
