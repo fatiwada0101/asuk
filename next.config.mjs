@@ -55,13 +55,6 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, verif-hash' },
         ],
       },
-      {
-        // Cache static assets aggressively
-        source: '/_next/static/(.*)',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
     ];
   },
 
