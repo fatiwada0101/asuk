@@ -97,7 +97,7 @@ export async function POST(request) {
     }
 
     // 3. Generate unique voucher code
-    const code = await generateUniqueCode();
+    let code = await generateUniqueCode();
 
     const uptimeMap = {
       '1h': '1h', '3h': '3h', '24h': '1d',
@@ -108,6 +108,7 @@ export async function POST(request) {
 
     // 4. Provision on MikroTik router
     let routerResult;
+    let isFallback = false;
     try {
       routerResult = await createHotspotUser({
         code,
@@ -119,18 +120,45 @@ export async function POST(request) {
         rate_limit: rateLimit,
       });
     } catch (routerErr) {
-      // CRITICAL: Router failed AFTER we deducted money — refund!
-      console.error('MikroTik provisioning failed, refunding wallet:', routerErr.message);
-      await supabaseAdmin.rpc('adjust_wallet_balance', {
-        p_user_id: user_id,
-        p_amount: numericPrice,
-        p_operation: 'add',
-      });
+      console.error('MikroTik provisioning failed, checking fallback vouchers:', routerErr.message);
 
-      return NextResponse.json({
-        error: `Router connection failed: ${routerErr.message}. Your wallet has been refunded.`,
-        router_error: true,
-      }, { status: 502 });
+      // Attempt to claim a pre-generated fallback voucher from the pool
+      const { data: fallbackVoucher } = await supabaseAdmin
+        .from('fallback_vouchers')
+        .select('id, voucher_code')
+        .eq('profile_name', plan_name)
+        .eq('is_used', false)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackVoucher) {
+        console.log(`Using fallback voucher ${fallbackVoucher.voucher_code} for ${plan_name}`);
+        await supabaseAdmin
+          .from('fallback_vouchers')
+          .update({
+            is_used: true,
+            used_by: user_id,
+            used_at: new Date().toISOString(),
+          })
+          .eq('id', fallbackVoucher.id);
+
+        code = fallbackVoucher.voucher_code;
+        isFallback = true;
+      } else {
+        // Router failed AND no fallback vouchers — refund wallet!
+        console.error('No fallback voucher available, refunding wallet:', routerErr.message);
+        await supabaseAdmin.rpc('adjust_wallet_balance', {
+          p_user_id: user_id,
+          p_amount: numericPrice,
+          p_operation: 'add',
+        });
+
+        return NextResponse.json({
+          error: `Router connection failed: ${routerErr.message}. No backup vouchers in stock for "${plan_name}". Your wallet has been refunded.`,
+          router_error: true,
+        }, { status: 502 });
+      }
     }
 
     // 5. Record transaction
@@ -161,7 +189,7 @@ export async function POST(request) {
     try {
       await supabaseAdmin.from('notifications').insert({
         user_id,
-        title: 'Wi-Fi Pass Purchased',
+        title: isFallback ? 'Wi-Fi Pass Purchased (Backup Pool)' : 'Wi-Fi Pass Purchased',
         message: `${plan_name} pass activated. Your voucher code: ${code}`,
         type: 'voucher_purchase',
       });
@@ -172,9 +200,10 @@ export async function POST(request) {
       voucher_code: code,
       plan: plan_name,
       price: numericPrice,
-      router_id: routerResult.routerId,
-      profile: routerResult.profile,
+      router_id: routerResult?.routerId || null,
+      profile: routerResult?.profile || plan_name,
       new_balance: newBalance,
+      is_fallback: isFallback,
     });
   } catch (error) {
     console.error('Purchase route exception:', error);

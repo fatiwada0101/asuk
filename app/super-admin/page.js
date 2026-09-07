@@ -31,6 +31,7 @@ const TABS = [
   { id: 'finance', label: 'Finance', icon: WalletIcon },
   { id: 'sessions', label: 'Live Sessions', icon: WifiIcon },
   { id: 'vouchers', label: 'Voucher Factory', icon: TicketIcon },
+  { id: 'fallback-vouchers', label: 'Fallback Pool', icon: ShieldIcon },
   { id: 'router-users', label: 'Router Users', icon: UsersIcon },
   { id: 'profiles', label: 'Hotspot Profiles', icon: ShieldIcon },
   { id: 'plans', label: 'Internet Plans', icon: WalletIcon },
@@ -323,6 +324,517 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
         </>
       )}
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// FALLBACK VOUCHER POOL COMPONENT
+// ═══════════════════════════════════════════════════════════
+function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
+  const [data, setData] = useState({ vouchers: [], summary: [], stats: { total: 0, available: 0, used: 0 } });
+  const [loading, setLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [customPlan, setCustomPlan] = useState('');
+  const [duration, setDuration] = useState('24h');
+  const [voucherCodes, setVoucherCodes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [filterPlan, setFilterPlan] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/super-admin/fallback-vouchers', {
+        headers: adminHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      } else {
+        showToast('Failed to load fallback vouchers');
+      }
+    } catch {
+      showToast('Network error loading fallback vouchers');
+    }
+    setLoading(false);
+  }, [adminHeaders, showToast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (plans && plans.length > 0 && !selectedPlan) {
+      setSelectedPlan(plans[0].name);
+      setDuration(plans[0].duration || '24h');
+    }
+  }, [plans, selectedPlan]);
+
+  const handlePlanChange = (planName) => {
+    setSelectedPlan(planName);
+    const found = plans?.find(p => p.name === planName);
+    if (found?.duration) setDuration(found.duration);
+  };
+
+  const handleAddVouchers = async (e) => {
+    e?.preventDefault();
+    const finalPlan = selectedPlan === '__custom__' ? customPlan.trim() : selectedPlan;
+    if (!finalPlan) {
+      showToast('Please select or enter a plan name');
+      return;
+    }
+    if (!voucherCodes.trim()) {
+      showToast('Please enter at least one voucher code');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/super-admin/fallback-vouchers', {
+        method: 'POST',
+        headers: {
+          ...adminHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profile_name: finalPlan,
+          duration: duration || '24h',
+          codes: voucherCodes,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok) {
+        showToast(`✅ Successfully added ${json.added} vouchers to fallback pool!`);
+        setVoucherCodes('');
+        fetchData();
+      } else {
+        showToast(`❌ ${json.error || 'Failed to add vouchers'}`);
+      }
+    } catch {
+      showToast('Network error saving vouchers');
+    }
+    setSubmitting(false);
+  };
+
+  const handleDeleteVoucher = async (id) => {
+    if (!confirm('Are you sure you want to delete this fallback voucher?')) return;
+    try {
+      const res = await fetch('/api/super-admin/fallback-vouchers', {
+        method: 'DELETE',
+        headers: {
+          ...adminHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        showToast('Voucher deleted');
+        fetchData();
+      } else {
+        showToast('Failed to delete voucher');
+      }
+    } catch {
+      showToast('Network error');
+    }
+  };
+
+  const handleClearUnused = async (profileName) => {
+    if (!confirm(`Are you sure you want to delete ALL unused fallback vouchers for "${profileName}"?`)) return;
+    try {
+      const res = await fetch('/api/super-admin/fallback-vouchers', {
+        method: 'DELETE',
+        headers: {
+          ...adminHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profile_name: profileName, clear_unused: true }),
+      });
+      if (res.ok) {
+        showToast(`Cleared unused vouchers for ${profileName}`);
+        fetchData();
+      } else {
+        showToast('Failed to clear vouchers');
+      }
+    } catch {
+      showToast('Network error');
+    }
+  };
+
+  const filteredVouchers = (data.vouchers || []).filter(v => {
+    if (filterPlan !== 'all' && v.profile_name !== filterPlan) return false;
+    if (filterStatus === 'available' && v.is_used) return false;
+    if (filterStatus === 'used' && !v.is_used) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return v.voucher_code.toLowerCase().includes(q) || (v.profile_name && v.profile_name.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  const lowStockPlans = (data.summary || []).filter(s => s.available < 5);
+
+  return (
+    <div className="sa-tab-body">
+      {/* Banner */}
+      <div className="sa-glass-card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{
+            fontSize: '1.8rem',
+            background: 'rgba(114, 87, 255, 0.15)',
+            padding: '10px 14px',
+            borderRadius: 12
+          }}>
+            🛡️
+          </div>
+          <div>
+            <h3 className="sa-card-title" style={{ fontSize: '1.1rem', marginBottom: 4 }}>
+              Offline Fallback Voucher Pool
+            </h3>
+            <p className="sa-card-sub" style={{ margin: 0, lineHeight: 1.5 }}>
+              Pre-generate voucher codes in <strong>Voucher Factory</strong> on your MikroTik router, then paste them here. If your router is offline or unreachable, the system automatically draws from this safety reserve so guests receive their Wi-Fi code immediately and purchases never fail!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Stats */}
+      <div className="sa-kpi-grid">
+        <div className="sa-kpi-card">
+          <div className="sa-kpi-top">
+            <span className="sa-kpi-label">Available Reserve</span>
+            <span className="sa-kpi-badge-trend">Ready</span>
+          </div>
+          <div className="sa-kpi-val" style={{ color: '#10B981' }}>{data.stats.available}</div>
+          <div className="sa-kpi-sub">Ready to dispense offline</div>
+        </div>
+
+        <div className="sa-kpi-card">
+          <div className="sa-kpi-top">
+            <span className="sa-kpi-label">Used / Dispensed</span>
+            <span className="sa-kpi-badge-trend">History</span>
+          </div>
+          <div className="sa-kpi-val">{data.stats.used}</div>
+          <div className="sa-kpi-sub">Total fallback codes used</div>
+        </div>
+
+        <div className="sa-kpi-card">
+          <div className="sa-kpi-top">
+            <span className="sa-kpi-label">Total Pool Size</span>
+          </div>
+          <div className="sa-kpi-val">{data.stats.total}</div>
+          <div className="sa-kpi-sub">Across all internet plans</div>
+        </div>
+
+        <div className="sa-kpi-card">
+          <div className="sa-kpi-top">
+            <span className="sa-kpi-label">Low Stock Alert</span>
+            {lowStockPlans.length > 0 && (
+              <span className="sa-badge sa-badge-warn">Attention</span>
+            )}
+          </div>
+          <div className="sa-kpi-val" style={{ color: lowStockPlans.length > 0 ? '#F59E0B' : '#10B981' }}>
+            {lowStockPlans.length}
+          </div>
+          <div className="sa-kpi-sub">
+            {lowStockPlans.length > 0 ? `${lowStockPlans.map(p => p.profile_name).join(', ')} low` : 'All pools well stocked'}
+          </div>
+        </div>
+      </div>
+
+      {/* Grid: Plan Pool Status + Bulk Add */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, marginTop: 20 }}>
+        {/* Pool status by plan */}
+        <div className="sa-glass-card">
+          <div className="sa-card-header">
+            <div>
+              <h3 className="sa-card-title">Reserve Pool by Plan</h3>
+              <p className="sa-card-sub">Stock level per internet plan</p>
+            </div>
+            <button className="sa-btn-outline" onClick={fetchData} disabled={loading} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+              Refresh
+            </button>
+          </div>
+
+          {data.summary.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 20px', color: '#8E8E93' }}>
+              No fallback vouchers added yet. Add some on the right to safeguard offline purchases.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {data.summary.map(item => {
+                const isLow = item.available < 5;
+                return (
+                  <div key={item.profile_name} style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isLow ? 'rgba(245, 158, 11, 0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: 12,
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{item.profile_name}</strong>
+                        <span style={{ fontSize: '0.75rem', color: '#8E8E93', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>
+                          {item.duration}
+                        </span>
+                        {isLow && (
+                          <span style={{
+                            fontSize: '0.72rem',
+                            color: '#F59E0B',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            fontWeight: 600
+                          }}>
+                            Low Stock
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#8E8E93', marginTop: 4 }}>
+                        <span style={{ color: item.available > 0 ? '#10B981' : '#EF4444', fontWeight: 600 }}>
+                          {item.available} available
+                        </span>
+                        {' • '}{item.used} used{' • '}{item.total} total
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {item.available > 0 && (
+                        <button
+                          className="sa-btn-outline"
+                          onClick={() => handleClearUnused(item.profile_name)}
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          title="Clear all unused vouchers for this plan"
+                        >
+                          Clear Unused
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Bulk Add Form */}
+        <div className="sa-glass-card">
+          <div className="sa-card-header">
+            <div>
+              <h3 className="sa-card-title">Add Vouchers to Pool</h3>
+              <p className="sa-card-sub">Paste pre-generated MikroTik voucher codes</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddVouchers} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="sa-field-box">
+              <label>Select Plan / Profile *</label>
+              <select
+                value={selectedPlan}
+                onChange={e => handlePlanChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#1A1A24',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 8,
+                  padding: '10px 12px'
+                }}
+              >
+                {(plans || []).map(p => (
+                  <option key={p.id} value={p.name}>
+                    {p.name} ({p.duration})
+                  </option>
+                ))}
+                <option value="__custom__">+ Custom Plan Name</option>
+              </select>
+            </div>
+
+            {selectedPlan === '__custom__' && (
+              <div className="sa-field-box">
+                <label>Custom Profile Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1 Day Pass"
+                  value={customPlan}
+                  onChange={e => setCustomPlan(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <div className="sa-field-box">
+              <label>Uptime Duration *</label>
+              <input
+                type="text"
+                placeholder="e.g. 24h, 7d, 30d, 1h"
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="sa-field-box">
+              <label>Voucher Codes (one per line or comma-separated) *</label>
+              <textarea
+                rows={5}
+                placeholder="WIFI-A1B2C3&#10;WIFI-D4E5F6&#10;WIFI-G7H8J9"
+                value={voucherCodes}
+                onChange={e => setVoucherCodes(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#1A1A24',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.88rem'
+                }}
+                required
+              />
+              <div style={{ fontSize: '0.78rem', color: '#8E8E93', marginTop: 4 }}>
+                Tip: Generate batch vouchers in MikroTik RouterOS or Voucher Factory tab, then copy &amp; paste the user codes here.
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="sa-btn-primary"
+              disabled={submitting}
+              style={{ marginTop: 6 }}
+            >
+              {submitting ? 'Adding Vouchers...' : 'Add to Reserve Pool'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Ledger Table */}
+      <div className="sa-glass-card" style={{ marginTop: 24 }}>
+        <div className="sa-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 className="sa-card-title">Voucher Inventory Ledger</h3>
+            <p className="sa-card-sub">All vouchers in fallback database</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search code..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                background: '#1A1A24',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: '0.85rem'
+              }}
+            />
+
+            <select
+              value={filterPlan}
+              onChange={e => setFilterPlan(e.target.value)}
+              style={{
+                background: '#1A1A24',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: '0.85rem'
+              }}
+            >
+              <option value="all">All Plans</option>
+              {data.summary.map(s => (
+                <option key={s.profile_name} value={s.profile_name}>{s.profile_name}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              style={{
+                background: '#1A1A24',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: '0.85rem'
+              }}
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available Only</option>
+              <option value="used">Used Only</option>
+            </select>
+          </div>
+        </div>
+
+        {filteredVouchers.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8E8E93' }}>
+            No vouchers match the current filter.
+          </div>
+        ) : (
+          <div className="sa-table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
+            <table className="sa-table">
+              <thead>
+                <tr>
+                  <th>Voucher Code</th>
+                  <th>Profile / Plan</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Added On</th>
+                  <th>Used At</th>
+                  <th style={{ textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVouchers.map(v => (
+                  <tr key={v.id}>
+                    <td>
+                      <code style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4, color: '#A78BFA' }}>
+                        {v.voucher_code}
+                      </code>
+                    </td>
+                    <td><strong>{v.profile_name}</strong></td>
+                    <td>{v.duration}</td>
+                    <td>
+                      <span className={`sa-badge ${v.is_used ? 'sa-badge-muted' : 'sa-badge-success'}`}>
+                        {v.is_used ? 'Used' : 'Available'}
+                      </span>
+                    </td>
+                    <td>{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
+                    <td>{v.used_at ? new Date(v.used_at).toLocaleString() : '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {!v.is_used && (
+                        <button
+                          onClick={() => handleDeleteVoucher(v.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#EF4444',
+                            cursor: 'pointer',
+                            fontSize: '0.82rem'
+                          }}
+                          title="Delete voucher"
+                        >
+                          ✕ Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1296,6 +1808,15 @@ export default function SuperAdminPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ═══ TAB: FALLBACK VOUCHER POOL ═══ */}
+        {activeTab === 'fallback-vouchers' && (
+          <FallbackVouchersTab
+            adminHeaders={adminHeaders}
+            showToast={showToast}
+            plans={plans}
+          />
         )}
 
         {/* ═══ TAB: ROUTER USERS ═══ */}

@@ -1,13 +1,31 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { checkMikroTikHealth } from '@/lib/mikrotik';
 
 export async function GET() {
   try {
-    // Fetch all public-facing settings in one query
-    const { data: settings } = await supabaseAdmin
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['flutterwave', 'branding']);
+    // Fetch settings and check router & fallback status concurrently
+    const [settingsRes, healthRes, fallbackRes] = await Promise.allSettled([
+      supabaseAdmin
+        .from('app_settings')
+        .select('key, value')
+        .in('key', ['flutterwave', 'branding']),
+      checkMikroTikHealth(2500),
+      supabaseAdmin
+        .from('fallback_vouchers')
+        .select('profile_name')
+        .eq('is_used', false),
+    ]);
+
+    const settings = settingsRes.status === 'fulfilled' && settingsRes.value.data ? settingsRes.value.data : [];
+    const mikrotikOnline = healthRes.status === 'fulfilled' ? !!healthRes.value : false;
+    const fallbackRows = fallbackRes.status === 'fulfilled' && fallbackRes.value.data ? fallbackRes.value.data : [];
+
+    const fallbackCounts = {};
+    for (const row of fallbackRows) {
+      fallbackCounts[row.profile_name] = (fallbackCounts[row.profile_name] || 0) + 1;
+    }
+    const hasFallbackVouchers = fallbackRows.length > 0;
 
     let flwPublicKey = process.env.FLUTTERWAVE_PUBLIC_KEY || '';
     let flwEnabled = false;
@@ -33,18 +51,27 @@ export async function GET() {
       }
     }
 
-
     return NextResponse.json({
       flutterwave: {
         publicKey: flwPublicKey,
         enabled: flwEnabled,
       },
       branding,
+      mikrotik: {
+        online: mikrotikOnline,
+        has_fallback_vouchers: hasFallbackVouchers,
+        fallback_counts: fallbackCounts,
+      },
     });
   } catch (error) {
     return NextResponse.json({
       flutterwave: { publicKey: '', enabled: false },
       branding: { app_name: 'Asuk Tech', logo_url: '', theme: 'violet' },
+      mikrotik: {
+        online: false,
+        has_fallback_vouchers: false,
+        fallback_counts: {},
+      },
     });
   }
 }

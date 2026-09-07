@@ -19,19 +19,35 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const [voucherData, setVoucherData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [flwConfig, setFlwConfig] = useState({ publicKey: '', enabled: false });
+  const [routerStatus, setRouterStatus] = useState({
+    loaded: false,
+    online: true,
+    has_fallback_vouchers: false,
+    fallback_counts: {},
+  });
 
   const walletBalance = wallet ? parseFloat(wallet.balance) : 0;
   const price = plan ? Number(plan.price) : 0;
   const hasSufficientWallet = walletBalance >= price;
 
-  // Fetch public gateway config
+  // Fetch public gateway & router health config
   useEffect(() => {
     fetch('/api/settings/public')
       .then(r => r.json())
       .then(d => {
         if (d.flutterwave) setFlwConfig(d.flutterwave);
+        if (d.mikrotik) {
+          setRouterStatus({
+            loaded: true,
+            online: !!d.mikrotik.online,
+            has_fallback_vouchers: !!d.mikrotik.has_fallback_vouchers,
+            fallback_counts: d.mikrotik.fallback_counts || {},
+          });
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        setRouterStatus(prev => ({ ...prev, loaded: true }));
+      });
   }, []);
 
   // Reset state when modal opens with a new plan
@@ -44,6 +60,10 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
       setPaymentMethod(user && hasSufficientWallet ? 'wallet' : 'card');
     }
   }, [isOpen, plan, user, hasSufficientWallet]);
+
+  const isRouterOnline = routerStatus.online;
+  const fallbackCount = plan ? (routerStatus.fallback_counts[plan.name] || 0) : 0;
+  const canPurchase = !routerStatus.loaded || isRouterOnline || fallbackCount > 0;
 
   if (!isOpen || !plan) return null;
 
@@ -69,6 +89,11 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
 
   // Pay with user's wallet
   const handleWalletPayment = async () => {
+    if (routerStatus.loaded && !canPurchase) {
+      setErrorMessage(`Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`);
+      return;
+    }
+
     if (!user) {
       router.push('/auth');
       return;
@@ -120,6 +145,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
         plan: plan.name,
         duration: plan.duration,
         routerId: data.router_id,
+        isFallback: data.is_fallback,
       });
       setStep('success');
       if (onSuccess) onSuccess();
@@ -131,6 +157,11 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
 
   // Pay online via Flutterwave
   const handleCardPayment = async () => {
+    if (routerStatus.loaded && !canPurchase) {
+      setErrorMessage(`Purchases are temporarily unavailable because the router is unreachable and no backup vouchers are in stock for ${plan.name}.`);
+      return;
+    }
+
     if (!guestEmail && !user) {
       setErrorMessage('Please provide an email address for your payment receipt.');
       return;
@@ -210,6 +241,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
               plan: plan.name,
               duration: plan.duration,
               routerId: verifyData.router_id,
+              isFallback: verifyData.is_fallback,
             });
             setStep('success');
             if (onSuccess) onSuccess();
@@ -254,6 +286,59 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
                 <span className="tax-label">Total Incl. VAT</span>
               </div>
             </div>
+
+            {/* Offline / Fallback Status Banner */}
+            {routerStatus.loaded && !canPurchase && (
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  color: '#f87171',
+                  fontSize: '0.88rem',
+                  lineHeight: '1.4'
+                }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                <div>
+                  <strong style={{ color: '#fca5a5', display: 'block', marginBottom: '2px' }}>
+                    Service Temporarily Unavailable
+                  </strong>
+                  The Wi-Fi router is currently offline and no backup vouchers are in stock for <strong>{plan.name}</strong>. Payments are paused to protect your funds.
+                </div>
+              </div>
+            )}
+
+            {routerStatus.loaded && !isRouterOnline && fallbackCount > 0 && (
+              <div
+                style={{
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  color: '#93c5fd',
+                  fontSize: '0.88rem',
+                  lineHeight: '1.4'
+                }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🛡️</span>
+                <div>
+                  <strong style={{ color: '#bfdbfe', display: 'block', marginBottom: '2px' }}>
+                    Backup Voucher Reserve Active
+                  </strong>
+                  Router is in offline mode, but <strong>{fallbackCount}</strong> pre-generated voucher{fallbackCount > 1 ? 's are' : ' is'} ready for instant delivery.
+                </div>
+              </div>
+            )}
 
             {/* Error banner if any */}
             {errorMessage && (
@@ -344,7 +429,20 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
 
             {/* Actions */}
             <div className="checkout-actions">
-              {paymentMethod === 'wallet' ? (
+              {routerStatus.loaded && !canPurchase ? (
+                <button
+                  className="btn btn-block checkout-pay-btn"
+                  disabled={true}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    color: 'rgba(255,255,255,0.35)',
+                    cursor: 'not-allowed',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }}
+                >
+                  Unavailable (Router Offline)
+                </button>
+              ) : paymentMethod === 'wallet' ? (
                 hasSufficientWallet ? (
                   <button className="btn btn-primary btn-block checkout-pay-btn" onClick={handleWalletPayment}>
                     Pay {formatPrice(plan.price)} from Wallet
@@ -406,7 +504,9 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
         {step === 'success' && voucherData && (
           <div className="checkout-ticket-wrap">
             <div className="ticket-top">
-              <div className="ticket-badge">✓ Provisioned on Router</div>
+              <div className="ticket-badge">
+                {voucherData.isFallback ? '✓ Issued from Backup Pool' : '✓ Provisioned on Router'}
+              </div>
               <h3>Wi-Fi Voucher Pass</h3>
               <p>{voucherData.plan} • Active Hotspot Account</p>
             </div>

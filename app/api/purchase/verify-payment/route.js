@@ -103,6 +103,7 @@ export async function POST(request) {
 
     // 5. Provision on MikroTik router
     let routerResult;
+    let isFallback = false;
     try {
       routerResult = await createHotspotUser({
         code,
@@ -115,24 +116,50 @@ export async function POST(request) {
       });
     } catch (routerErr) {
       console.error('Router provisioning error after payment:', routerErr.message);
-      // Payment was taken, but router provisioning had an error
-      // Record as pending in Supabase so admin can see and fulfill
-      await supabaseAdmin
-        .from('vouchers')
-        .insert({
-          user_id: user_id || null,
-          voucher_code: code,
-          profile_name: plan_name,
-          price: numericPrice,
-          is_used: false,
-        });
 
-      return NextResponse.json({
-        success: false,
-        voucher_code: code,
-        error: `Payment was verified (Ref: ${tx_ref}), but the router reported: "${routerErr.message}". Please contact support or check router in Super Admin.`,
-        pending_router: true,
-      }, { status: 502 });
+      // Attempt to claim a pre-generated fallback voucher from the pool
+      const { data: fallbackVoucher } = await supabaseAdmin
+        .from('fallback_vouchers')
+        .select('id, voucher_code')
+        .eq('profile_name', plan_name)
+        .eq('is_used', false)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackVoucher) {
+        console.log(`Using fallback voucher ${fallbackVoucher.voucher_code} for ${plan_name}`);
+        await supabaseAdmin
+          .from('fallback_vouchers')
+          .update({
+            is_used: true,
+            used_by: user_id || null,
+            used_at: new Date().toISOString(),
+          })
+          .eq('id', fallbackVoucher.id);
+
+        code = fallbackVoucher.voucher_code;
+        isFallback = true;
+      } else {
+        // Payment was taken, but router provisioning had an error and no backup vouchers
+        // Record as pending in Supabase so admin can see and fulfill
+        await supabaseAdmin
+          .from('vouchers')
+          .insert({
+            user_id: user_id || null,
+            voucher_code: code,
+            profile_name: plan_name,
+            price: numericPrice,
+            is_used: false,
+          });
+
+        return NextResponse.json({
+          success: false,
+          voucher_code: code,
+          error: `Payment was verified (Ref: ${tx_ref}), but the router is unreachable and no backup vouchers are available for "${plan_name}". Please contact support with Ref: ${tx_ref}.`,
+          pending_router: true,
+        }, { status: 502 });
+      }
     }
 
     // 6. Record successful voucher in Supabase
@@ -151,7 +178,7 @@ export async function POST(request) {
       try {
         await supabaseAdmin.from('notifications').insert({
           user_id,
-          title: 'Wi-Fi Pass Purchased',
+          title: isFallback ? 'Wi-Fi Pass Purchased (Backup Pool)' : 'Wi-Fi Pass Purchased',
           message: `${plan_name} pass activated via card payment. Your code: ${code}`,
           type: 'voucher_purchase',
         });
@@ -163,8 +190,9 @@ export async function POST(request) {
       voucher_code: code,
       plan: plan_name,
       price: numericPrice,
-      router_id: routerResult.routerId,
-      profile: routerResult.profile,
+      router_id: routerResult?.routerId || null,
+      profile: routerResult?.profile || plan_name,
+      is_fallback: isFallback,
     });
   } catch (error) {
     console.error('Verify payment exception:', error);
