@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 *.png
+!public/icons/*.png
 
 # debug
 npm-debug.log*
