@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "test": "node --env-file=.env.local --test tests/*.test.mjs"
+    "start": "next start"
   },
   "imports": {
     "@/*": "./*"

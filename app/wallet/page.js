@@ -786,6 +786,11 @@ export default function WalletPage() {
                       <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
                         {formatDate(tx.created_at)}
                       </div>
+                      {tx.flw_ref && (
+                        <div style={{ fontSize: '10px', color: '#A1A1AA', marginTop: '1px', fontFamily: 'monospace' }}>
+                          Ref: {tx.flw_ref.substring(0, 20)}…
+                        </div>
+                      )}
                     </div>
                   </div>
 

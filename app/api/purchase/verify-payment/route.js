@@ -222,6 +222,12 @@ export async function POST(request) {
           amount: numericPrice,
           status: 'successful',
           payment_method: 'card',
+          flw_ref: tx_ref || null,
+          metadata: {
+            plan_name: plan_name,
+            voucher_code: code,
+            duration: duration || null,
+          },
         })
         .select('id')
         .single();

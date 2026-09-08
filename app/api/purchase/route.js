@@ -234,6 +234,12 @@ export async function POST(request) {
           type: 'voucher_purchase',
           amount: numericPrice,
           status: 'successful',
+          payment_method: 'wallet',
+          metadata: {
+            plan_name: effectivePlanName,
+            voucher_code: code,
+            duration: duration || null,
+          },
         })
         .select('id')
         .single();
