@@ -133,6 +133,14 @@ test('POST /api/webhook/flutterwave - processes topup and enforces strict idempo
   const testRef = `FLW_TOPUP_TEST_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const testUserId = '5c9313db-58a4-4ad9-b14b-2d70cce5a908'; // Existing user from profiles
 
+  // Record balance BEFORE test so we can restore it
+  const { data: walletBefore } = await supabaseAdmin
+    .from('wallets')
+    .select('balance')
+    .eq('user_id', testUserId)
+    .maybeSingle();
+  const balanceBefore = Number(walletBefore?.balance || 0);
+
   const payload = {
     data: {
       status: 'successful',
@@ -175,6 +183,26 @@ test('POST /api/webhook/flutterwave - processes topup and enforces strict idempo
   assert.equal(data2.status, 'success');
   assert.equal(data2.action, 'already_processed');
   assert.equal(data2.balance, balanceAfterFirst, 'Balance must remain identical on duplicate webhook retry');
+
+  // CLEANUP: Reverse the wallet credit and delete the test transaction
+  // This prevents test runs from accumulating fake balance on real accounts
+  await supabaseAdmin
+    .from('transactions')
+    .delete()
+    .eq('flw_ref', testRef);
+
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: balanceBefore })
+    .eq('user_id', testUserId);
+
+  // Also clean up any test notification
+  await supabaseAdmin
+    .from('notifications')
+    .delete()
+    .eq('user_id', testUserId)
+    .eq('type', 'wallet_credit')
+    .like('message', '%200%');
 });
 
 test('Finance logic - correctly aggregates both guest and user transactions', () => {
