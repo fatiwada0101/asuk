@@ -105,12 +105,13 @@ function CaptiveLoginPage() {
     setError('');
 
     try {
-      // Validate voucher status in database
-      const statusRes = await fetch(`/api/vouchers/status?code=${encodeURIComponent(clean)}`);
-      const statusData = await statusRes.json();
+      // Validate voucher via dedicated validation endpoint
+      const validateRes = await fetch(`/api/vouchers/validate?code=${encodeURIComponent(clean)}`);
+      const validateData = await validateRes.json();
 
-      if (!statusRes.ok || !statusData.valid) {
-        setError(statusData.error || 'Invalid or expired voucher code');
+      if (!validateRes.ok || !validateData.valid) {
+        // Show the specific error message from the API
+        setError(validateData.error || 'Invalid or expired voucher code. Please check and try again.');
         setLoading(false);
         setAutoConnecting(false);
         return;
@@ -123,7 +124,7 @@ function CaptiveLoginPage() {
         submitToMikrotik(clean);
       }, 1000);
     } catch {
-      setError('Network error — please check router connection and try again');
+      setError('Network error — please check your connection and try again.');
       setLoading(false);
       setAutoConnecting(false);
     }

@@ -54,7 +54,7 @@ export async function GET(request) {
     const code = searchParams.get('code')?.trim();
 
     if (!code) {
-      return NextResponse.json({ error: 'Missing voucher code parameter' }, { status: 400 });
+      return NextResponse.json({ valid: false, error: 'Missing voucher code parameter' }, { status: 400 });
     }
 
     // 1. Cross-reference Supabase vouchers table
@@ -91,7 +91,16 @@ export async function GET(request) {
       }
     }
 
-    // 3. Compute telemetry
+    // 3. VALIDATION: If voucher not found anywhere, return explicit invalid response
+    if (!dbVoucher && !routerSession && !routerUser) {
+      return NextResponse.json({
+        valid: false,
+        error: 'Invalid voucher code. Please check your code and try again.',
+        code,
+      }, { status: 404 });
+    }
+
+    // 4. Compute telemetry
     const isConnected = !!routerSession;
     let uptimeSeconds = 0;
     let limitUptimeSeconds = 86400; // default 24h
@@ -149,7 +158,21 @@ export async function GET(request) {
     const isExpired = secondsRemaining <= 0;
     const isExpiringSoon = !isExpired && (secondsRemaining < 1800 || percentRemaining <= 25); // < 30m or < 25%
 
+    // 5. VALIDATION: If voucher is expired, return explicit expired response
+    if (isExpired && !isConnected) {
+      return NextResponse.json({
+        valid: false,
+        error: 'This voucher has expired. Please purchase a new plan.',
+        code,
+        plan_name: planName,
+        is_expired: true,
+        seconds_remaining: 0,
+        formatted_time_left: '00:00:00',
+      }, { status: 410 });
+    }
+
     return NextResponse.json({
+      valid: true,
       success: true,
       code,
       plan_name: planName,
@@ -176,6 +199,6 @@ export async function GET(request) {
     });
   } catch (err) {
     console.error('Error fetching voucher session status:', err);
-    return NextResponse.json({ error: 'Failed to retrieve voucher status: ' + err.message }, { status: 500 });
+    return NextResponse.json({ valid: false, error: 'Failed to retrieve voucher status: ' + err.message }, { status: 500 });
   }
 }
