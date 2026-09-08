@@ -123,6 +123,7 @@ export async function POST(request) {
         amount,
         status: 'successful',
         flw_ref: txRef,
+        payment_method: 'card',
       }, { onConflict: 'flw_ref', ignoreDuplicates: true })
       .select('id, user_id, amount, flw_ref, status, created_at')
       .maybeSingle();

@@ -788,7 +788,7 @@ export default function WalletPage() {
                       </div>
                       {tx.flw_ref && (
                         <div style={{ fontSize: '10px', color: '#A1A1AA', marginTop: '1px', fontFamily: 'monospace' }}>
-                          Ref: {tx.flw_ref.substring(0, 20)}…
+                          Ref: {tx.flw_ref.length > 20 ? tx.flw_ref.substring(0, 20) + '…' : tx.flw_ref}
                         </div>
                       )}
                     </div>
