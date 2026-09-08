@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth } from '@/lib/admin-auth';
+import { validateUserAuth } from '@/lib/user-auth';
 
-// GET — Fetch user's notifications
+// GET — Fetch user's notifications (requires Bearer token auth)
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -10,6 +11,12 @@ export async function GET(request) {
 
     if (!userId) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
+    }
+
+    // Verify the requester is the owner of these notifications
+    const authUser = await validateUserAuth(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ notifications: [], unread_count: 0 });
     }
 
     const { data, error } = await supabaseAdmin
@@ -36,13 +43,19 @@ export async function GET(request) {
   }
 }
 
-// PATCH — Mark notifications as read
+// PATCH — Mark notifications as read (requires Bearer token auth)
 export async function PATCH(request) {
   try {
     const { notification_ids, user_id, mark_all } = await request.json();
 
     if (!user_id) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
+    }
+
+    // Verify the requester owns these notifications
+    const authUser = await validateUserAuth(request);
+    if (!authUser || authUser.id !== user_id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (mark_all) {

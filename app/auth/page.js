@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import BottomNav from '../components/BottomNav';
 import {
   ChevronLeftIcon,
@@ -30,6 +31,8 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const formatPrice = (amount) =>
     '₦' +
@@ -63,6 +66,29 @@ export default function AuthPage() {
       }
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        resetEmail.trim(),
+        {
+          redirectTo: typeof window !== 'undefined'
+            ? `${window.location.origin}/auth/reset-password`
+            : undefined,
+        }
+      );
+      if (resetError) throw resetError;
+      setSuccess('Password reset link sent! Check your email inbox (and spam folder).');
+    } catch (err) {
+      setError(err.message || 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -289,15 +315,67 @@ export default function AuthPage() {
           <WifiIcon size={26} color="#7257FF" />
         </div>
 
-        <h2 className="auth-title">{isLogin ? 'Welcome Back' : 'Join Asuk Tech'}</h2>
+        <h2 className="auth-title">
+          {forgotMode ? 'Reset Password' : isLogin ? 'Welcome Back' : 'Join Asuk Tech'}
+        </h2>
         <p className="auth-subtitle">
-          {isLogin
+          {forgotMode
+            ? 'Enter your email to receive a password reset link'
+            : isLogin
             ? 'Sign in to access your wallet & saved passes'
             : 'Register to manage your wallet and Wi-Fi passes'}
         </p>
 
         {error && <div className="auth-toast-error">{error}</div>}
         {success && <div className="auth-toast-success">{success}</div>}
+
+        {forgotMode ? (
+          <>
+            <form onSubmit={handleForgotPassword}>
+              <div className="auth-field">
+                <label className="auth-field-label">Email Address</label>
+                <div className="auth-input-box">
+                  <MailIcon size={18} color="#8E8E93" />
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="auth-submit-btn" disabled={loading}>
+                {loading ? 'Sending Reset Link...' : 'Send Password Reset Email'}
+              </button>
+            </form>
+
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotMode(false);
+                  setError('');
+                  setSuccess('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#7257FF',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          </>
+        ) : (
+        <>
 
         <form onSubmit={handleSubmit}>
           {!isLogin && (
@@ -367,6 +445,31 @@ export default function AuthPage() {
               <span>{isLogin ? 'Sign In to Account' : 'Create Free Account'}</span>
             )}
           </button>
+
+          {isLogin && (
+            <div style={{ textAlign: 'center', marginTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotMode(true);
+                  setResetEmail(email);
+                  setError('');
+                  setSuccess('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#7257FF',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
         </form>
 
         <div
@@ -415,6 +518,8 @@ export default function AuthPage() {
             ← Continue as Guest
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

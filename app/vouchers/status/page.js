@@ -28,6 +28,7 @@ function VoucherStatusContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState('');
   const [networkInfo, setNetworkInfo] = useState({
     hotspot_url: 'asuktech.net',
     wifi_ssid: 'Asuk Tech Wi-Fi',

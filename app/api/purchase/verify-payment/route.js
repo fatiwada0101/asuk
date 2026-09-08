@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { createOrQueueHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik';
+import { generateUniqueCode } from '@/lib/voucher-utils.js';
 
 export async function POST(request) {
   try {
@@ -130,12 +131,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unable to verify payment with gateway: ' + flwErr.message }, { status: 502 });
     }
 
-    // 4. Generate random voucher code
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = 'WIFI-';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    // 4. Generate collision-safe voucher code
+    let code = await generateUniqueCode();
 
     const uptimeMap = {
       '1h': '1h', '3h': '3h', '24h': '1d',
@@ -214,7 +211,26 @@ export async function POST(request) {
       }
     }
 
-    // 6. Record successful voucher in Supabase (include tx_ref for idempotency)
+    // 6. Record transaction for card payment (so it shows in wallet history/analytics)
+    let txId = null;
+    try {
+      const { data: tx } = await supabaseAdmin
+        .from('transactions')
+        .insert({
+          user_id: user_id || null,
+          type: 'voucher_purchase',
+          amount: numericPrice,
+          status: 'successful',
+          payment_method: 'card',
+        })
+        .select('id')
+        .single();
+      txId = tx?.id || null;
+    } catch (e) {
+      console.warn('Transaction record insert failed (non-fatal):', e.message);
+    }
+
+    // 7. Record successful voucher in Supabase (include tx_ref for idempotency)
     await supabaseAdmin
       .from('vouchers')
       .insert({
@@ -223,10 +239,11 @@ export async function POST(request) {
         profile_name: plan_name,
         price: numericPrice,
         tx_ref: tx_ref || null,
+        transaction_id: txId,
         is_used: false,
       });
 
-    // 7. Create notification if user is logged in
+    // 8. Create notification if user is logged in
     if (user_id) {
       try {
         await supabaseAdmin.from('notifications').insert({

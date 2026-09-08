@@ -2,29 +2,9 @@ import { NextResponse } from 'next/server.js';
 import { supabaseAdmin } from '@/lib/supabase-server.js';
 import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik.js';
 import { validateUserAuth, userUnauthorizedResponse } from '@/lib/user-auth.js';
+import { generateUniqueCode, generateWalletTxRef } from '@/lib/voucher-utils.js';
 
-/**
- * Helper: Generate a collision-resistant 6-char voucher code with retry
- */
-async function generateUniqueCode(maxRetries = 3) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    let code = 'WIFI-';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    // Check if code already exists in Supabase
-    const { data: existing } = await supabaseAdmin
-      .from('vouchers')
-      .select('id')
-      .eq('voucher_code', code)
-      .maybeSingle();
-
-    if (!existing) return code;
-  }
-  // Fallback: timestamp-based code
-  return 'WIFI-' + Date.now().toString(36).toUpperCase().slice(-6);
-}
+// generateUniqueCode and generateWalletTxRef imported from @/lib/voucher-utils.js
 
 /**
  * Helper: Read global hotspot settings from app_settings
@@ -154,8 +134,9 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // 3. Generate unique voucher code
+    // 3. Generate unique voucher code and tx_ref
     let code = await generateUniqueCode();
+    const walletTxRef = generateWalletTxRef();
 
     const uptimeMap = {
       '1h': '1h', '3h': '3h', '24h': '1d',
@@ -257,7 +238,7 @@ export async function POST(request) {
         .select('id')
         .single();
 
-      // 6. Record voucher in Supabase
+      // 6. Record voucher in Supabase (with tx_ref for idempotency)
       await supabaseAdmin
         .from('vouchers')
         .insert({
@@ -266,6 +247,7 @@ export async function POST(request) {
           profile_name: effectivePlanName,
           price: numericPrice,
           transaction_id: tx?.id || null,
+          tx_ref: walletTxRef,
           is_used: false,
         });
     } catch (dbErr) {

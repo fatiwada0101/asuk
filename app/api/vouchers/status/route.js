@@ -160,6 +160,16 @@ export async function GET(request) {
 
     // 5. VALIDATION: If voucher is expired, return explicit expired response
     if (isExpired && !isConnected) {
+      // Mark as used in DB (non-blocking, fire-and-forget)
+      if (dbVoucher && !dbVoucher.is_used) {
+        supabaseAdmin
+          .from('vouchers')
+          .update({ is_used: true })
+          .eq('voucher_code', code)
+          .then(() => {})
+          .catch(() => {});
+      }
+
       return NextResponse.json({
         valid: false,
         error: 'This voucher has expired. Please purchase a new plan.',
