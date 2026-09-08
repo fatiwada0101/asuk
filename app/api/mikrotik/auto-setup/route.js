@@ -387,23 +387,109 @@ export async function POST(request) {
         appDomains.push(`*${hotspotUrl}*`);
       }
 
-      // Common domains needed for captive portal to work (HTTP + HTTPS)
+      // Comprehensive domains for captive portal, banks, payment switches & 3DS ACS links
       const walledGardenDomains = [
         ...appDomains,
-        'www.asuk.tech',                 // Portal domain
-        'asuk.tech',                     // Apex domain
-        '*.asuk.tech',                   // Asuk Tech wildcards
-        'vtvzxbyxgotcathjxivo.supabase.co', // Core Supabase backend
-        '*.supabase.co',                 // Backend APIs
-        '*.supabase.in',                 // Backend alt
-        '*.vercel.app',                  // Vercel hosting
-        '*.flutterwave.com',             // Payment gateway
-        '*.googleapis.com',              // Google Fonts / APIs
-        '*.gstatic.com',                 // Google static assets
-        '*.cloudflare.com',              // CDN
-        'connectivitycheck.gstatic.com', // Android captive portal detection
-        'captive.apple.com',             // iOS captive portal detection
-        '*.msftconnecttest.com',         // Windows captive portal detection
+        // Core System & Portal
+        'www.asuk.tech',
+        'asuk.tech',
+        '*.asuk.tech',
+        'vtvzxbyxgotcathjxivo.supabase.co',
+        '*.supabase.co',
+        '*.supabase.in',
+        '*.vercel.app',
+
+        // Payment Gateways & Switches
+        '*.flutterwave.com',
+        '*.flw.io',
+        '*.ravepay.co',
+        '*.paystack.com',
+        '*.paystack.co',
+        '*.remita.net',
+        '*.interswitchng.com',
+        '*.quickteller.com',
+        '*.interswitch.com',
+        '*.unifiedpaymentsnigeria.com',
+        '*.monnify.com',
+        '*.squadco.com',
+        '*.habaripay.com',
+        '*.nomba.com',
+        '*.payvessel.com',
+
+        // 3D Secure & Hidden ACS Authentication
+        '*.mastercard.com',
+        '*.securecode.com',
+        '*.visa.com',
+        '*.visaeurope.com',
+        '*.verve.com.ng',
+        '*.verveinternational.com',
+        '*.cardinalcommerce.com',
+        '*.arcot.com',
+        '*.modirum.com',
+        '*.threatmetrix.com',
+
+        // Digital Banks & Fintechs
+        '*.opayweb.com',
+        '*.opay.com',
+        '*.operapay.com',
+        '*.palmpay.com',
+        '*.palmpay.co',
+        '*.palmpay.app',
+        '*.moniepoint.com',
+        '*.teamapt.com',
+        '*.kuda.com',
+        '*.kudabank.com',
+        '*.piggyvest.com',
+        '*.pocketapp.com',
+        '*.vbank.ng',
+        '*.vfdtech.ng',
+        '*.getcarbon.co',
+        '*.carbon.ng',
+        '*.fairmoney.io',
+        '*.fairmoney.ng',
+        '*.chippercash.com',
+
+        // Commercial Banks
+        '*.gtbank.com',
+        '*.gtworld.com',
+        '*.accessbankplc.com',
+        '*.accessmore.com',
+        '*.zenithbank.com',
+        '*.zenithbank.com.ng',
+        '*.firstbanknigeria.com',
+        '*.firstmonie.com',
+        '*.ubagroup.com',
+        '*.uba.com',
+        '*.stanbicibtc.com',
+        '*.stanbic.com',
+        '*.fidelitybank.ng',
+        '*.fidelitybank.com',
+        '*.sterlingbank.com',
+        '*.sterling.ng',
+        '*.onebank.ng',
+        '*.fcmb.com',
+        '*.unionbankng.com',
+        '*.unionbank.com',
+        '*.polarisbanklimited.com',
+        '*.polaris.com.ng',
+        '*.vult.ng',
+        '*.alat.ng',
+        '*.wemabank.com',
+        '*.keystonebankng.com',
+        '*.jaizbankplc.com',
+        '*.tajbank.com',
+        '*.lotusbank.com',
+        '*.premiumtrustbank.com',
+        '*.optimusbank.com',
+        '*.signaturebankng.com',
+
+        // Web Fonts & Captive Detection
+        '*.googleapis.com',
+        '*.gstatic.com',
+        '*.cloudflare.com',
+        'connectivitycheck.gstatic.com',
+        'captive.apple.com',
+        '*.msftconnecttest.com',
       ];
 
       let wgCreated = 0;

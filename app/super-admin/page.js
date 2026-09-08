@@ -2322,28 +2322,7 @@ export default function SuperAdminPage() {
   };
 
 
-  // ═══ Walled Garden Handlers ═══
-  const NIGERIAN_BANKS = [
-    { domain: '*.gtbank.com', label: 'GTBank' },
-    { domain: '*.gtworld.com', label: 'GTWorld' },
-    { domain: '*.accessbankplc.com', label: 'Access Bank' },
-    { domain: '*.zenithbank.com', label: 'Zenith Bank' },
-    { domain: '*.firstbanknigeria.com', label: 'First Bank' },
-    { domain: '*.ubagroup.com', label: 'UBA' },
-    { domain: '*.kudabank.com', label: 'Kuda Bank' },
-    { domain: '*.kuda.com', label: 'Kuda' },
-    { domain: '*.opay.com', label: 'OPay' },
-    { domain: '*.opayweb.com', label: 'OPay Web' },
-    { domain: '*.moniepoint.com', label: 'Moniepoint' },
-    { domain: '*.palmpay.com', label: 'PalmPay' },
-    { domain: '*.polaris.com.ng', label: 'Polaris Bank' },
-    { domain: '*.sterlingbank.com', label: 'Sterling Bank' },
-    { domain: '*.alat.ng', label: 'Wema (ALAT)' },
-    { domain: '*.stanbicibtc.com', label: 'Stanbic IBTC' },
-    { domain: '*.fidelitybank.ng', label: 'Fidelity Bank' },
-    { domain: '*.fcmb.com', label: 'FCMB' },
-  ];
-
+  // ═══ Walled Garden Handlers & Domain Definitions ═══
   const CORE_SYSTEM_DOMAINS = [
     { domain: 'www.asuk.tech', label: 'Asuk Tech Portal (Default)' },
     { domain: 'asuk.tech', label: 'Asuk Tech Apex' },
@@ -2353,12 +2332,117 @@ export default function SuperAdminPage() {
   ];
 
   const PAYMENT_GATEWAYS = [
-    { domain: '*.flutterwave.com', label: 'Flutterwave' },
+    { domain: '*.flutterwave.com', label: 'Flutterwave Core' },
     { domain: '*.flw.io', label: 'Flutterwave CDN' },
     { domain: '*.ravepay.co', label: 'Rave by Flutterwave' },
-    { domain: '*.paystack.com', label: 'Paystack' },
-    { domain: '*.paystack.co', label: 'Paystack Alt' },
+    { domain: '*.paystack.com', label: 'Paystack Checkout' },
+    { domain: '*.paystack.co', label: 'Paystack API' },
+    { domain: '*.remita.net', label: 'Remita Gateway' },
+    { domain: '*.interswitchng.com', label: 'Interswitch Webpay' },
+    { domain: '*.quickteller.com', label: 'Quickteller' },
+    { domain: '*.interswitch.com', label: 'Interswitch Global' },
+    { domain: '*.unifiedpaymentsnigeria.com', label: 'Unified Payments (UP)' },
+    { domain: '*.monnify.com', label: 'Monnify Gateway' },
+    { domain: '*.squadco.com', label: 'Squad by HabariPay' },
+    { domain: '*.habaripay.com', label: 'HabariPay Gateway' },
+    { domain: '*.nomba.com', label: 'Nomba (Kudi)' },
+    { domain: '*.payvessel.com', label: 'PayVessel' },
   ];
+
+  const SECURITY_3DS_DOMAINS = [
+    { domain: '*.mastercard.com', label: 'Mastercard 3D-Secure' },
+    { domain: '*.securecode.com', label: 'Mastercard SecureCode' },
+    { domain: '*.visa.com', label: 'Verified by Visa (VbV)' },
+    { domain: '*.visaeurope.com', label: 'Visa Europe 3DS' },
+    { domain: '*.verve.com.ng', label: 'Verve Card Verification' },
+    { domain: '*.verveinternational.com', label: 'Verve International' },
+    { domain: '*.cardinalcommerce.com', label: 'CardinalCommerce 3DS ACS' },
+    { domain: '*.arcot.com', label: 'Arcot 3DS Authentication' },
+    { domain: '*.modirum.com', label: 'Modirum 3DS ACS Engine' },
+    { domain: '*.threatmetrix.com', label: 'ThreatMetrix Risk Authentication' },
+  ];
+
+  const NIGERIAN_BANKS = [
+    // Digital Banks & Fintechs
+    { domain: '*.opayweb.com', label: 'OPay Web Portal' },
+    { domain: '*.opay.com', label: 'OPay Mobile & API' },
+    { domain: '*.operapay.com', label: 'OPay Services' },
+    { domain: '*.palmpay.com', label: 'PalmPay Web' },
+    { domain: '*.palmpay.co', label: 'PalmPay API' },
+    { domain: '*.palmpay.app', label: 'PalmPay App Engine' },
+    { domain: '*.moniepoint.com', label: 'Moniepoint Banking' },
+    { domain: '*.teamapt.com', label: 'TeamApt / Moniepoint' },
+    { domain: '*.kuda.com', label: 'Kuda Bank Web' },
+    { domain: '*.kudabank.com', label: 'Kuda Bank Portal' },
+    { domain: '*.piggyvest.com', label: 'Piggyvest' },
+    { domain: '*.pocketapp.com', label: 'Pocket by Piggyvest' },
+    { domain: '*.vbank.ng', label: 'VBank by VFD' },
+    { domain: '*.vfdtech.ng', label: 'VFD Tech Infra' },
+    { domain: '*.getcarbon.co', label: 'Carbon Finance' },
+    { domain: '*.carbon.ng', label: 'Carbon NG' },
+    { domain: '*.fairmoney.io', label: 'FairMoney Bank' },
+    { domain: '*.fairmoney.ng', label: 'FairMoney NG' },
+    { domain: '*.chippercash.com', label: 'Chipper Cash' },
+    // Commercial Banks
+    { domain: '*.gtbank.com', label: 'GTBank' },
+    { domain: '*.gtworld.com', label: 'GTWorld Mobile' },
+    { domain: '*.accessbankplc.com', label: 'Access Bank' },
+    { domain: '*.accessmore.com', label: 'AccessMore App' },
+    { domain: '*.zenithbank.com', label: 'Zenith Bank' },
+    { domain: '*.zenithbank.com.ng', label: 'Zenith Bank NG' },
+    { domain: '*.firstbanknigeria.com', label: 'First Bank' },
+    { domain: '*.firstmonie.com', label: 'FirstMonie Agent & App' },
+    { domain: '*.ubagroup.com', label: 'UBA Group' },
+    { domain: '*.uba.com', label: 'UBA Portal' },
+    { domain: '*.stanbicibtc.com', label: 'Stanbic IBTC' },
+    { domain: '*.stanbic.com', label: 'Stanbic Portal' },
+    { domain: '*.fidelitybank.ng', label: 'Fidelity Bank' },
+    { domain: '*.fidelitybank.com', label: 'Fidelity Portal' },
+    { domain: '*.sterlingbank.com', label: 'Sterling Bank' },
+    { domain: '*.sterling.ng', label: 'Sterling NG' },
+    { domain: '*.onebank.ng', label: 'OneBank by Sterling' },
+    { domain: '*.fcmb.com', label: 'FCMB' },
+    { domain: '*.unionbankng.com', label: 'Union Bank' },
+    { domain: '*.unionbank.com', label: 'Union Bank Portal' },
+    { domain: '*.polarisbanklimited.com', label: 'Polaris Bank' },
+    { domain: '*.polaris.com.ng', label: 'Polaris Bank NG' },
+    { domain: '*.vult.ng', label: 'VULTe by Polaris' },
+    { domain: '*.alat.ng', label: 'ALAT by Wema' },
+    { domain: '*.wemabank.com', label: 'Wema Bank' },
+    { domain: '*.keystonebankng.com', label: 'Keystone Bank' },
+    { domain: '*.jaizbankplc.com', label: 'Jaiz Bank' },
+    { domain: '*.tajbank.com', label: 'Taj Bank' },
+    { domain: '*.lotusbank.com', label: 'Lotus Bank' },
+    { domain: '*.premiumtrustbank.com', label: 'PremiumTrust Bank' },
+    { domain: '*.optimusbank.com', label: 'Optimus Bank' },
+    { domain: '*.signaturebankng.com', label: 'Signature Bank' },
+  ];
+
+  const handleActivateAllBypass = async () => {
+    const all = [
+      ...CORE_SYSTEM_DOMAINS.map(d => ({ ...d, category: 'core' })),
+      ...PAYMENT_GATEWAYS.map(d => ({ ...d, category: 'payment' })),
+      ...SECURITY_3DS_DOMAINS.map(d => ({ ...d, category: 'security' })),
+      ...NIGERIAN_BANKS.map(d => ({ ...d, category: 'bank' })),
+    ];
+    setWgSyncing(true);
+    let added = 0;
+    const existingDomains = walledGardenEntries.map(e => (e['dst-host'] || '').toLowerCase());
+    for (const entry of all) {
+      if (existingDomains.includes(entry.domain.toLowerCase())) continue;
+      try {
+        await fetch('/api/mikrotik/walled-garden', {
+          method: 'POST',
+          headers: adminHeaders(),
+          body: JSON.stringify({ dst_host: entry.domain, category: entry.category, comment: entry.label }),
+        });
+        added++;
+      } catch {}
+    }
+    showToast(`⚡ Activated ${added} new bypass domains (All Banks, Gateways & 3DS)!`);
+    await fetchWalledGarden();
+    setWgSyncing(false);
+  };
 
 
   const handleAddWalledGarden = async (dstHost, category = 'custom', label = '') => {
@@ -2958,21 +3042,28 @@ export default function SuperAdminPage() {
         {/* ═══ TAB: VOUCHER FACTORY ═══ */}
         {activeTab === 'vouchers' && (
           <div className="sa-tab-body">
-            {/* Subtab Switcher */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+            {/* Subtab Segmented Controls */}
+            <div className="sa-subtab-container" role="tablist">
               <button
-                className={voucherFactoryTab === 'generator' ? 'sa-tab-btn active' : 'sa-tab-btn'}
+                type="button"
+                role="tab"
+                aria-selected={voucherFactoryTab === 'generator'}
+                className={`sa-subtab-btn ${voucherFactoryTab === 'generator' ? 'active' : ''}`}
                 onClick={() => setVoucherFactoryTab('generator')}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                <TicketIcon size={15} /> 🎟️ Voucher Factory & Studio
+                <span className="sa-subtab-icon">🎟️</span>
+                <span>Voucher Factory & Studio</span>
               </button>
               <button
-                className={voucherFactoryTab === 'batches' ? 'sa-tab-btn active' : 'sa-tab-btn'}
+                type="button"
+                role="tab"
+                aria-selected={voucherFactoryTab === 'batches'}
+                className={`sa-subtab-btn ${voucherFactoryTab === 'batches' ? 'active' : ''}`}
                 onClick={() => { setVoucherFactoryTab('batches'); fetchBatchHistory(); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                📦 Batch History & Archives ({batchHistory.length})
+                <span className="sa-subtab-icon">📦</span>
+                <span>Batch History & Archives</span>
+                <span className="sa-subtab-pill">{batchHistory.length}</span>
               </button>
             </div>
 
@@ -4009,6 +4100,48 @@ export default function SuperAdminPage() {
         {/* ═══ TAB: WALLED GARDEN ═══ */}
         {activeTab === 'walled-garden' && (
           <div className="sa-tab-body">
+            {/* Master Activation Banner */}
+            <div className="sa-glass-card" style={{
+              background: 'linear-gradient(135deg, rgba(114, 87, 255, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%)',
+              border: '1px solid rgba(114, 87, 255, 0.35)',
+              boxShadow: '0 8px 32px rgba(114, 87, 255, 0.15)',
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 22 }}>⚡</span>
+                    <h3 className="sa-card-title" style={{ color: '#FFFFFF', fontSize: 18 }}>All-in-One Walled Garden Bypass</h3>
+                    <span className="sa-badge sa-badge-purple" style={{ fontSize: 11 }}>Active on Router: {walledGardenEntries.length}</span>
+                  </div>
+                  <p className="sa-card-sub" style={{ color: '#D4D4D8', maxWidth: 680 }}>
+                    Enable all Nigerian commercial banks, digital fintechs (OPay, PalmPay, Moniepoint, Kuda), payment switches (Paystack, Flutterwave, Interswitch, Remita), and hidden 3D Secure / ACS verification links (Mastercard, Visa, Verve, CardinalCommerce) so all users can make payments and use bank apps freely before Wi-Fi login.
+                  </p>
+                </div>
+                <button
+                  className="sa-btn-primary"
+                  style={{
+                    padding: '12px 24px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                  onClick={handleActivateAllBypass}
+                  disabled={wgSyncing}
+                >
+                  <span>⚡</span>
+                  {wgSyncing ? 'Provisioning Router...' : 'Activate All Banks & Gateways (1-Click)'}
+                </button>
+              </div>
+            </div>
+
             {/* Core App & Database Bypass (Defaults) */}
             <div className="sa-glass-card">
               <div className="sa-card-header">
@@ -4069,6 +4202,38 @@ export default function SuperAdminPage() {
                       </div>
                       {!isActive ? (
                         <button className="sa-btn-pill-small" style={{ fontSize: 11 }} onClick={() => handleAddWalledGarden(gw.domain, 'payment', gw.label)} disabled={wgSyncing}>Add</button>
+                      ) : (
+                        <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Active</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3D-Secure ACS & Card Verification (Hidden Links) */}
+            <div className="sa-glass-card" style={{ marginTop: 20 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">🔐 3D Secure ACS & Card Verification (Hidden Bank Links)</h3>
+                  <p className="sa-card-sub">Hidden risk authentication engines, ACS redirect endpoints, and OTP verification portals</p>
+                </div>
+                <button className="sa-btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => handleBulkAddWalledGarden(SECURITY_3DS_DOMAINS, 'security')} disabled={wgSyncing}>
+                  {wgSyncing ? 'Syncing...' : '➕ Add All 3DS & ACS Links'}
+                </button>
+              </div>
+              <div className="sa-wg-list">
+                {SECURITY_3DS_DOMAINS.map((sec, i) => {
+                  const isActive = walledGardenEntries.some(e => (e['dst-host'] || '').toLowerCase() === sec.domain.toLowerCase());
+                  return (
+                    <div key={i} className="sa-wg-item">
+                      <div className="sa-wg-item-info">
+                        <span className={`sa-wg-dot ${isActive ? 'active' : ''}`} />
+                        <code className="sa-wg-domain">{sec.domain}</code>
+                        <span className="sa-badge sa-badge-purple" style={{ fontSize: 9, padding: '1px 6px' }}>{sec.label}</span>
+                      </div>
+                      {!isActive ? (
+                        <button className="sa-btn-pill-small" style={{ fontSize: 11 }} onClick={() => handleAddWalledGarden(sec.domain, 'security', sec.label)} disabled={wgSyncing}>Add</button>
                       ) : (
                         <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Active</span>
                       )}
