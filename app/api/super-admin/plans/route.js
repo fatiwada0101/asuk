@@ -6,7 +6,8 @@ import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 export async function GET(request) {
   try {
     const url = new URL(request.url);
-    const showAll = url.searchParams.get('all') === 'true' || (await validateAdminAuth(request));
+    const isAdmin = await validateAdminAuth(request);
+    const showAll = url.searchParams.get('all') === 'true' && isAdmin;
 
     let query = supabaseAdmin
       .from('plans')

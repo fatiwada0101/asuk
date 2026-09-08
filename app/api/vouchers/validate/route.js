@@ -31,44 +31,66 @@ export async function GET(request) {
     // 1. Check Supabase vouchers table
     const { data: dbVoucher } = await supabaseAdmin
       .from('vouchers')
-      .select('voucher_code, profile_name, price, is_used, created_at')
+      .select('voucher_code, profile_name, price, is_used, created_at, status, expires_at')
       .eq('voucher_code', code)
       .maybeSingle();
 
-    // 2. If found in DB, check if expired based on plan duration
+    // 2. If found in DB
     if (dbVoucher) {
-      // Estimate total plan duration from profile name
-      let totalDurationSec = 86400; // default 24h
-      const durationMatch = (dbVoucher.profile_name || '').toLowerCase();
-      if (durationMatch.includes('1 hour') || durationMatch.includes('1h')) totalDurationSec = 3600;
-      else if (durationMatch.includes('3 hour') || durationMatch.includes('3h')) totalDurationSec = 10800;
-      else if (durationMatch.includes('7 day') || durationMatch.includes('7d') || durationMatch.includes('week')) totalDurationSec = 604800;
-      else if (durationMatch.includes('30 day') || durationMatch.includes('30d') || durationMatch.includes('month')) totalDurationSec = 2592000;
+      // If explicitly flagged as expired in DB
+      if (dbVoucher.status === 'expired') {
+        return NextResponse.json({
+          valid: false,
+          error: 'This voucher has expired. Please purchase a new plan.',
+          code,
+          plan_name: dbVoucher.profile_name,
+          is_expired: true,
+        }, { status: 410 });
+      }
 
-      // Check wall-clock expiry as a rough estimate
-      // The actual session timer on MikroTik is the source of truth, but this
-      // prevents obviously expired codes from being submitted to the router
-      if (dbVoucher.created_at) {
-        const createdAt = new Date(dbVoucher.created_at).getTime();
-        const elapsedSec = Math.floor((Date.now() - createdAt) / 1000);
+      // If an explicit expiration timestamp was recorded and has passed
+      if (dbVoucher.expires_at && new Date(dbVoucher.expires_at).getTime() < Date.now()) {
+        return NextResponse.json({
+          valid: false,
+          error: 'This voucher has expired. Please purchase a new plan.',
+          code,
+          plan_name: dbVoucher.profile_name,
+          is_expired: true,
+        }, { status: 410 });
+      }
 
-        // Add a 10% grace period to account for paused-time mode
-        if (elapsedSec > totalDurationSec * 1.1) {
-          return NextResponse.json({
-            valid: false,
-            error: 'This voucher has expired. Please purchase a new plan.',
-            code,
-            plan_name: dbVoucher.profile_name,
-            is_expired: true,
-          }, { status: 410 });
+      // If voucher has been used, check MikroTik router for actual remaining uptime
+      if (dbVoucher.is_used) {
+        const configured = await isMikroTikConfigured();
+        if (configured) {
+          try {
+            const users = await getHotspotUsers();
+            const routerUser = users.find((u) => u.name === code);
+            if (routerUser && routerUser['limit-uptime'] && routerUser.uptime) {
+              const limitSec = parseDurationToSeconds(routerUser['limit-uptime']);
+              const usedSec = parseDurationToSeconds(routerUser.uptime);
+              if (limitSec > 0 && usedSec >= limitSec) {
+                return NextResponse.json({
+                  valid: false,
+                  error: 'This voucher has expired. Please purchase a new plan.',
+                  code,
+                  plan_name: dbVoucher.profile_name,
+                  is_expired: true,
+                }, { status: 410 });
+              }
+            }
+          } catch (e) {
+            console.warn('Router check during used voucher validation (non-fatal):', e.message);
+          }
         }
       }
 
-      // Voucher exists and is not expired
+      // Voucher exists and is active/ready to connect
       return NextResponse.json({
         valid: true,
         code: dbVoucher.voucher_code,
         plan_name: dbVoucher.profile_name,
+        is_used: !!dbVoucher.is_used,
       });
     }
 

@@ -99,6 +99,11 @@ export async function POST(request) {
         return NextResponse.json({ error: `Verified deposit amount (₦${verifiedAmount}) does not match requested amount (₦${numericAmount})` }, { status: 400 });
       }
 
+      // Check transaction reference if returned by gateway
+      if (flwData.data?.tx_ref && flw_ref && flwData.data.tx_ref !== flw_ref) {
+        return NextResponse.json({ error: 'Transaction reference mismatch with payment gateway' }, { status: 400 });
+      }
+
       if (flwData.data?.currency && flwData.data.currency !== 'NGN') {
         return NextResponse.json({ error: 'Invalid transaction currency' }, { status: 400 });
       }
@@ -106,6 +111,9 @@ export async function POST(request) {
       console.error('Flutterwave topup verify error:', flwErr);
       return NextResponse.json({ error: 'Unable to verify payment with gateway: ' + flwErr.message }, { status: 502 });
     }
+
+    // Use authoritative reference from gateway if present
+    const authoritativeRef = ref;
 
     // 4. ATOMIC idempotency: Insert transaction first
     const { data: insertedTx, error: txInsertErr } = await supabaseAdmin
@@ -115,7 +123,7 @@ export async function POST(request) {
         type: 'wallet_topup',
         amount: numericAmount,
         status: 'successful',
-        flw_ref: ref,
+        flw_ref: authoritativeRef,
         payment_method: 'card',
       }, { onConflict: 'flw_ref', ignoreDuplicates: true })
       .select('id, user_id, amount, flw_ref, status, created_at')

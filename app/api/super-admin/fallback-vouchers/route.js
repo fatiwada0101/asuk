@@ -188,6 +188,7 @@ export async function POST(request) {
           code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
 
+        let routerSuccess = true;
         if (online) {
           try {
             await createOrQueueHotspotUser({
@@ -203,17 +204,21 @@ export async function POST(request) {
           } catch (err) {
             console.error(`Error provisioning router voucher ${code}:`, err.message);
             errors.push(err.message);
+            routerSuccess = false;
           }
         }
 
-        createdVouchers.push({
-          voucher_code: code,
-          plan_id: plan_id || null,
-          profile_name,
-          duration,
-          status: 'available',
-          is_used: false,
-        });
+        // Only add to fallback pool if router succeeded or router is offline (queued)
+        if (routerSuccess) {
+          createdVouchers.push({
+            voucher_code: code,
+            plan_id: plan_id || null,
+            profile_name,
+            duration,
+            status: 'available',
+            is_used: false,
+          });
+        }
       }
 
       if (createdVouchers.length === 0) {

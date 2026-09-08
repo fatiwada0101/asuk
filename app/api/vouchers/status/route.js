@@ -132,39 +132,49 @@ export async function GET(request) {
       }
     }
 
+    // Calculate duration for this voucher
+    let totalDurationSec = 86400; // default 24h
+    const durationMatch = (dbVoucher?.duration || dbVoucher?.profile_name || '').toLowerCase();
+    if (durationMatch.includes('1 hour') || durationMatch.includes('1h')) totalDurationSec = 3600;
+    else if (durationMatch.includes('3 hour') || durationMatch.includes('3h')) totalDurationSec = 10800;
+    else if (durationMatch.includes('6 hour') || durationMatch.includes('6h')) totalDurationSec = 21600;
+    else if (durationMatch.includes('12 hour') || durationMatch.includes('12h')) totalDurationSec = 43200;
+    else if (durationMatch.includes('7 day') || durationMatch.includes('7d') || durationMatch.includes('week')) totalDurationSec = 604800;
+    else if (durationMatch.includes('30 day') || durationMatch.includes('30d') || durationMatch.includes('month')) totalDurationSec = 2592000;
+
+    if (!limitUptimeSeconds) limitUptimeSeconds = totalDurationSec;
+
     // Fallback calculation if router does not specify remaining time
     if (secondsRemaining === null) {
-      if (dbVoucher?.created_at) {
+      if (dbVoucher && !dbVoucher.is_used && uptimeSeconds === 0) {
+        // Unused voucher — 100% of duration remains and has not expired!
+        secondsRemaining = totalDurationSec;
+        uptimeSeconds = 0;
+      } else if (dbVoucher?.expires_at) {
+        const expiresAt = new Date(dbVoucher.expires_at).getTime();
+        secondsRemaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      } else if (dbVoucher?.is_used && dbVoucher?.created_at) {
         const createdAt = new Date(dbVoucher.created_at).getTime();
-        const durationMatch = (dbVoucher.profile_name || '').toLowerCase();
-        let totalDurationSec = 86400; // default 24h
-
-        if (durationMatch.includes('1 hour') || durationMatch.includes('1h')) totalDurationSec = 3600;
-        else if (durationMatch.includes('3 hour') || durationMatch.includes('3h')) totalDurationSec = 10800;
-        else if (durationMatch.includes('7 day') || durationMatch.includes('7d') || durationMatch.includes('week')) totalDurationSec = 604800;
-        else if (durationMatch.includes('30 day') || durationMatch.includes('30d') || durationMatch.includes('month')) totalDurationSec = 2592000;
-
-        limitUptimeSeconds = totalDurationSec;
         const elapsedSec = Math.floor((Date.now() - createdAt) / 1000);
         secondsRemaining = Math.max(0, totalDurationSec - elapsedSec);
         if (uptimeSeconds === 0) uptimeSeconds = Math.min(elapsedSec, totalDurationSec);
       } else {
-        secondsRemaining = 0;
+        secondsRemaining = totalDurationSec;
       }
     }
 
     const totalSeconds = limitUptimeSeconds || 86400;
     const percentRemaining = Math.max(0, Math.min(100, Math.round((secondsRemaining / totalSeconds) * 100)));
-    const isExpired = secondsRemaining <= 0;
+    const isExpired = (dbVoucher?.status === 'expired') || (secondsRemaining <= 0 && dbVoucher?.is_used);
     const isExpiringSoon = !isExpired && (secondsRemaining < 1800 || percentRemaining <= 25); // < 30m or < 25%
 
     // 5. VALIDATION: If voucher is expired, return explicit expired response
     if (isExpired && !isConnected) {
-      // Mark as used in DB (non-blocking, fire-and-forget)
-      if (dbVoucher && !dbVoucher.is_used) {
+      // Mark status as expired in DB
+      if (dbVoucher && dbVoucher.status !== 'expired') {
         supabaseAdmin
           .from('vouchers')
-          .update({ is_used: true })
+          .update({ status: 'expired' })
           .eq('voucher_code', code)
           .then(() => {})
           .catch(() => {});

@@ -22,10 +22,12 @@ export async function POST(request) {
       devices = 1,
       upload_speed = '12M',
       download_speed = '12M',
+      code_length = 6,
     } = await request.json();
 
     // Validate quantity (1-100)
     const count = Math.min(Math.max(Number(quantity) || 1, 1), 100);
+    const codeLen = Math.min(Math.max(Number(code_length) || 6, 4), 12);
 
     // Map expiry_type to RouterOS uptime format
     const expiryMap = {
@@ -69,13 +71,19 @@ export async function POST(request) {
       }
     } catch (e) {}
 
-    // Generate voucher codes (6 chars for collision resistance)
+    // Generate voucher codes with configurable length
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const usedCodes = new Set();
     const generateCode = () => {
-      let code = 'WIFI-';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
+      let code, attempts = 0;
+      do {
+        code = 'WIFI-';
+        for (let i = 0; i < codeLen; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        attempts++;
+      } while (usedCodes.has(code) && attempts < 20);
+      usedCodes.add(code);
       return code;
     };
 

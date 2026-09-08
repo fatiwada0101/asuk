@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 
 const AuthContext = createContext({});
@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
   };
 
   // Refresh wallet balance from DB
-  const refreshWallet = async () => {
+  const refreshWallet = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
       .from('wallets')
@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
       .eq('user_id', user.id)
       .maybeSingle();
     if (data) setWallet(data);
-  };
+  }, [user]);
 
   // Listen for auth state changes
   useEffect(() => {

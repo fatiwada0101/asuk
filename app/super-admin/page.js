@@ -24,6 +24,9 @@ import {
   ClockIcon,
   ZapIcon,
   ThermometerIcon,
+  GlobeIcon,
+  PrinterIcon,
+  DownloadIcon,
 } from '../components/Icons';
 import MikroTikSetupGuide from '../components/MikroTikSetupGuide';
 import MikroTikDiagnosticsAndLogs from '../components/MikroTikDiagnosticsAndLogs';
@@ -39,6 +42,7 @@ const TABS = [
   { id: 'plans', label: 'Internet Plans', icon: WalletIcon },
   { id: 'network', label: 'Network Health', icon: ActivityIcon },
   { id: 'branding', label: 'Branding & Theme', icon: EditPencilIcon },
+  { id: 'walled-garden', label: 'Walled Garden', icon: GlobeIcon },
   { id: 'mikrotik', label: 'MikroTik Config', icon: CpuIcon },
   { id: 'payments', label: 'Payment Gateway', icon: ServerIcon },
 ];
@@ -134,7 +138,8 @@ function FinanceTab({ adminHeaders, formatPrice, showToast }) {
   const exportPDF = async () => {
     try {
       setExporting(true);
-      const { jsPDF } = await import('jspdf');
+      const jspdfModule = await import('jspdf');
+      const jsPDF = jspdfModule.jsPDF || jspdfModule.default?.jsPDF || jspdfModule.default;
       await import('jspdf-autotable');
       const doc = new jsPDF();
       const { start, end } = getDateRange(dateFilter);
@@ -1650,10 +1655,30 @@ export default function SuperAdminPage() {
     quantity: 10, profile: 'default', expiry_type: 'daily',
     custom_duration: '1d', price: 100, plan_name: '1 Day Pass',
     devices: 1, upload_speed: '12M', download_speed: '12M',
+    code_length: 6,
   });
   const [genLoading, setGenLoading] = useState(false);
   const [generatedVouchers, setGeneratedVouchers] = useState([]);
   const [genResult, setGenResult] = useState(null);
+  const [voucherSearch, setVoucherSearch] = useState('');
+  const [voucherSort, setVoucherSort] = useState('default');
+  const [voucherPage, setVoucherPage] = useState(1);
+  const [voucherPageSize, setVoucherPageSize] = useState(20);
+  const [printScope, setPrintScope] = useState('all');
+
+  // Voucher Card Customization
+  const [cardOptions, setCardOptions] = useState({
+    style: 'branded', cols: 2, rows: 4,
+    showSsid: true, showPrice: true, showExpiry: true,
+  });
+  const [cardExporting, setCardExporting] = useState(false);
+
+  // Walled Garden
+  const [walledGardenEntries, setWalledGardenEntries] = useState([]);
+  const [wgLoading, setWgLoading] = useState(false);
+  const [wgSyncing, setWgSyncing] = useState(false);
+  const [wgCustomUrl, setWgCustomUrl] = useState('');
+  const [wgCustomComment, setWgCustomComment] = useState('');
 
   // Router Users
   const [routerUsers, setRouterUsers] = useState([]);
@@ -1682,8 +1707,9 @@ export default function SuperAdminPage() {
   // Misc
   const [copiedPin, setCopiedPin] = useState('');
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
-  const formatPrice = (a) => '₦' + Number(a || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); }, []);
+  const formatPrice = useCallback((a) => '₦' + Number(a || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), []);
   const formatBytes = (bytes) => {
     if (!bytes || bytes === '0') return '0 B';
     const n = Number(bytes);
@@ -1818,6 +1844,19 @@ export default function SuperAdminPage() {
     finally { setNetworkLoading(false); }
   }, [token, adminHeaders]);
 
+  const fetchWalledGarden = useCallback(async () => {
+    setWgLoading(true);
+    try {
+      const res = await fetch('/api/mikrotik/walled-garden', { headers: adminHeaders() });
+      const data = await res.json();
+      if (res.ok && data.entries) {
+        setWalledGardenEntries(data.entries);
+      }
+    } catch (err) {
+      console.error('Walled garden fetch error:', err);
+    } finally { setWgLoading(false); }
+  }, [adminHeaders]);
+
   const handleTestMikrotik = useCallback(async (silent = false) => {
     setTestLoading(true);
     try {
@@ -1848,7 +1887,8 @@ export default function SuperAdminPage() {
     if (activeTab === 'router-users') fetchRouterUsers();
     else if (activeTab === 'profiles') fetchRouterProfiles();
     else if (activeTab === 'network') fetchNetworkHealth();
-  }, [activeTab, authed, token, fetchRouterUsers, fetchRouterProfiles, fetchNetworkHealth]);
+    else if (activeTab === 'walled-garden') fetchWalledGarden();
+  }, [activeTab, authed, token, fetchRouterUsers, fetchRouterProfiles, fetchNetworkHealth, fetchWalledGarden]);
 
   // ── Action Handlers ────────────────────────────────────────
 
@@ -2012,6 +2052,9 @@ export default function SuperAdminPage() {
     setGenLoading(true);
     setGenResult(null);
     setGeneratedVouchers([]);
+    setVoucherSearch('');
+    setVoucherSort('default');
+    setVoucherPage(1);
     try {
       const res = await fetch('/api/mikrotik/generate-vouchers', {
         method: 'POST',
@@ -2029,6 +2072,195 @@ export default function SuperAdminPage() {
       }
     } catch (err) { showToast('Error: ' + err.message); }
     finally { setGenLoading(false); }
+  };
+
+  // ═══ Voucher Card Export Handlers with Search, Sort & Scope ═══
+  const getProcessedVouchers = useCallback(() => {
+    let list = [...generatedVouchers];
+    if (voucherSearch.trim()) {
+      const q = voucherSearch.trim().toLowerCase();
+      list = list.filter(v => (v.code || '').toLowerCase().includes(q) || (v.expiry || '').toLowerCase().includes(q));
+    }
+    if (voucherSort === 'code-asc') {
+      list.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+    } else if (voucherSort === 'code-desc') {
+      list.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
+    } else if (voucherSort === 'expiry') {
+      list.sort((a, b) => (a.expiry || '').localeCompare(b.expiry || ''));
+    }
+    return list;
+  }, [generatedVouchers, voucherSearch, voucherSort]);
+
+  const getTargetVouchersForExport = useCallback(() => {
+    const list = getProcessedVouchers();
+    if (printScope === 'page' && voucherPageSize !== 'all') {
+      const size = Number(voucherPageSize) || 20;
+      return list.slice((voucherPage - 1) * size, voucherPage * size);
+    }
+    return list;
+  }, [getProcessedVouchers, printScope, voucherPageSize, voucherPage]);
+
+  const handlePrintCards = async () => {
+    const targetVouchers = getTargetVouchersForExport();
+    if (targetVouchers.length === 0) return showToast('No vouchers to print');
+    setCardExporting(true);
+    try {
+      const { printVoucherCards } = await import('@/lib/voucherCardGenerator');
+      const cardVouchers = targetVouchers.map(v => ({
+        code: v.code,
+        expiry: v.expiry || genResult?.expiry_label || '',
+        plan_name: voucherGen.plan_name,
+        price: voucherGen.price,
+      }));
+      await printVoucherCards(cardVouchers, {
+        ...cardOptions,
+        brandName: brandingForm.app_name || 'Asuk Tech Wi-Fi',
+        ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+      });
+      showToast(`🖨️ Print dialog opened (${cardVouchers.length} cards)`);
+    } catch (err) { showToast('Print error: ' + err.message); }
+    finally { setCardExporting(false); }
+  };
+
+  const handleDownloadCardsPdf = async () => {
+    const targetVouchers = getTargetVouchersForExport();
+    if (targetVouchers.length === 0) return showToast('No vouchers to download');
+    setCardExporting(true);
+    try {
+      const { downloadVoucherSheetPdf } = await import('@/lib/voucherCardGenerator');
+      const cardVouchers = targetVouchers.map(v => ({
+        code: v.code,
+        expiry: v.expiry || genResult?.expiry_label || '',
+        plan_name: voucherGen.plan_name,
+        price: voucherGen.price,
+      }));
+      await downloadVoucherSheetPdf(cardVouchers, {
+        ...cardOptions,
+        brandName: brandingForm.app_name || 'Asuk Tech Wi-Fi',
+        ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+      });
+      showToast(`📄 PDF downloaded (${cardVouchers.length} cards)`);
+    } catch (err) { showToast('PDF error: ' + err.message); }
+    finally { setCardExporting(false); }
+  };
+
+  const handleDownloadCardsImage = async () => {
+    const targetVouchers = getTargetVouchersForExport();
+    if (targetVouchers.length === 0) return showToast('No vouchers to download');
+    setCardExporting(true);
+    try {
+      const { downloadVoucherSheetImage } = await import('@/lib/voucherCardGenerator');
+      const cardVouchers = targetVouchers.map(v => ({
+        code: v.code,
+        expiry: v.expiry || genResult?.expiry_label || '',
+        plan_name: voucherGen.plan_name,
+        price: voucherGen.price,
+      }));
+      downloadVoucherSheetImage(cardVouchers, {
+        ...cardOptions,
+        brandName: brandingForm.app_name || 'Asuk Tech Wi-Fi',
+        ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+      });
+      showToast(`🖼️ Image downloaded (${cardVouchers.length} cards)`);
+    } catch (err) { showToast('Image error: ' + err.message); }
+    finally { setCardExporting(false); }
+  };
+
+  // ═══ Walled Garden Handlers ═══
+  const NIGERIAN_BANKS = [
+    { domain: '*.gtbank.com', label: 'GTBank' },
+    { domain: '*.gtworld.com', label: 'GTWorld' },
+    { domain: '*.accessbankplc.com', label: 'Access Bank' },
+    { domain: '*.zenithbank.com', label: 'Zenith Bank' },
+    { domain: '*.firstbanknigeria.com', label: 'First Bank' },
+    { domain: '*.ubagroup.com', label: 'UBA' },
+    { domain: '*.kudabank.com', label: 'Kuda Bank' },
+    { domain: '*.kuda.com', label: 'Kuda' },
+    { domain: '*.opay.com', label: 'OPay' },
+    { domain: '*.opayweb.com', label: 'OPay Web' },
+    { domain: '*.moniepoint.com', label: 'Moniepoint' },
+    { domain: '*.palmpay.com', label: 'PalmPay' },
+    { domain: '*.polaris.com.ng', label: 'Polaris Bank' },
+    { domain: '*.sterlingbank.com', label: 'Sterling Bank' },
+    { domain: '*.alat.ng', label: 'Wema (ALAT)' },
+    { domain: '*.stanbicibtc.com', label: 'Stanbic IBTC' },
+    { domain: '*.fidelitybank.ng', label: 'Fidelity Bank' },
+    { domain: '*.fcmb.com', label: 'FCMB' },
+  ];
+
+  const PAYMENT_GATEWAYS = [
+    { domain: '*.flutterwave.com', label: 'Flutterwave' },
+    { domain: '*.flw.io', label: 'Flutterwave CDN' },
+    { domain: '*.ravepay.co', label: 'Rave by Flutterwave' },
+    { domain: '*.paystack.com', label: 'Paystack' },
+    { domain: '*.paystack.co', label: 'Paystack Alt' },
+  ];
+
+
+  const handleAddWalledGarden = async (dstHost, category = 'custom', label = '') => {
+    setWgSyncing(true);
+    try {
+      const res = await fetch('/api/mikrotik/walled-garden', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({ dst_host: dstHost, category, comment: label }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`✅ Added ${dstHost} to bypass list`);
+        await fetchWalledGarden();
+      } else {
+        showToast('❌ ' + (data.details || data.error));
+      }
+    } catch (err) { showToast('Error: ' + err.message); }
+    finally { setWgSyncing(false); }
+  };
+
+  const handleRemoveWalledGarden = async (entryId, domain, source) => {
+    if (!confirm(`Remove "${domain}" from bypass list?`)) return;
+    setWgSyncing(true);
+    try {
+      const res = await fetch('/api/mikrotik/walled-garden', {
+        method: 'DELETE',
+        headers: adminHeaders(),
+        body: JSON.stringify({ id: entryId, source: source || undefined }),
+      });
+      if (res.ok) {
+        showToast(`Removed ${domain}`);
+        await fetchWalledGarden();
+      } else {
+        const data = await res.json();
+        showToast('❌ ' + (data.details || data.error));
+      }
+    } catch (err) { showToast('Error: ' + err.message); }
+    finally { setWgSyncing(false); }
+  };
+
+  const handleBulkAddWalledGarden = async (entries, category) => {
+    setWgSyncing(true);
+    let added = 0;
+    const existingDomains = walledGardenEntries.map(e => (e['dst-host'] || '').toLowerCase());
+    for (const entry of entries) {
+      if (existingDomains.includes(entry.domain.toLowerCase())) continue;
+      try {
+        await fetch('/api/mikrotik/walled-garden', {
+          method: 'POST',
+          headers: adminHeaders(),
+          body: JSON.stringify({ dst_host: entry.domain, category, comment: entry.label }),
+        });
+        added++;
+      } catch {}
+    }
+    showToast(`✅ Added ${added} ${category} entries`);
+    await fetchWalledGarden();
+    setWgSyncing(false);
+  };
+
+  const handleAddCustomUrl = async () => {
+    if (!wgCustomUrl.trim()) return showToast('Enter a domain');
+    await handleAddWalledGarden(wgCustomUrl.trim(), 'custom', wgCustomComment.trim() || wgCustomUrl.trim());
+    setWgCustomUrl('');
+    setWgCustomComment('');
   };
 
   // Router User Management
@@ -2633,6 +2865,17 @@ export default function SuperAdminPage() {
                     onChange={e => setVoucherGen({ ...voucherGen, download_speed: e.target.value })}
                     placeholder="12M" />
                 </div>
+                <div className="sa-field-box">
+                  <label>Code Length</label>
+                  <select value={voucherGen.code_length}
+                    onChange={e => setVoucherGen({ ...voucherGen, code_length: Number(e.target.value) })}>
+                    <option value={4}>4 Characters</option>
+                    <option value={6}>6 Characters (Default)</option>
+                    <option value={8}>8 Characters</option>
+                    <option value={10}>10 Characters</option>
+                    <option value={12}>12 Characters</option>
+                  </select>
+                </div>
               </div>
 
               <div className="sa-plan-form-footer">
@@ -2643,17 +2886,26 @@ export default function SuperAdminPage() {
             </div>
 
             {/* Generated Results */}
-            {genResult && (
+            {genResult && (() => {
+              const processed = getProcessedVouchers();
+              const isAll = voucherPageSize === 'all';
+              const pageSize = isAll ? Math.max(1, processed.length) : Number(voucherPageSize) || 20;
+              const totalPages = Math.max(1, Math.ceil(processed.length / pageSize));
+              const currentPage = Math.min(Math.max(1, voucherPage), totalPages);
+              const paginatedVouchers = isAll ? processed : processed.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+              const exportCount = printScope === 'page' ? paginatedVouchers.length : processed.length;
+
+              return (
               <div className="sa-glass-card" style={{ marginTop: 24 }}>
                 <div className="sa-card-header">
                   <div>
                     <h3 className="sa-card-title">Generated Vouchers</h3>
-                    <p className="sa-card-sub">{genResult.generated} created • {genResult.expiry_label} expiry • {genResult.limit_uptime} uptime</p>
+                    <p className="sa-card-sub">{genResult.generated} created • {genResult.expiry_label} expiry • {genResult.limit_uptime} uptime • {voucherGen.plan_name} • ₦{voucherGen.price}</p>
                   </div>
                   <div className="sa-header-actions">
-                    {generatedVouchers.length > 0 && (
+                    {processed.length > 0 && (
                       <button className="sa-btn-pill-small" onClick={copyAllVouchers}>
-                        📋 Copy All Codes
+                        📋 Copy All ({processed.length})
                       </button>
                     )}
                     <span className="sa-badge sa-badge-success">{genResult.generated} Success</span>
@@ -2661,24 +2913,266 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
 
-                {generatedVouchers.length > 0 && (
-                  <div className="sa-voucher-grid">
-                    {generatedVouchers.map((v, i) => (
-                      <div key={i} className="sa-voucher-card-mini" onClick={() => copyCode(v.code)}>
-                        <div className="sa-voucher-card-code">
-                          <code>{v.code}</code>
-                          <span className="sa-copy-icon">{copiedPin === v.code ? '✓' : '📋'}</span>
+                {/* Categorization & Metadata Badges */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '8px 0', alignItems: 'center' }}>
+                  <span className="sa-badge sa-badge-purple" style={{ fontSize: 11 }}>🏷️ Category: {voucherGen.plan_name}</span>
+                  <span className="sa-badge" style={{ fontSize: 11, background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>⏱ Expiry: {genResult.expiry_label}</span>
+                  <span className="sa-badge" style={{ fontSize: 11, background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>💰 ₦{voucherGen.price} each</span>
+                  <span className="sa-badge" style={{ fontSize: 11, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>🔤 {voucherGen.code_length} chars</span>
+                  <span className="sa-badge sa-badge-muted" style={{ fontSize: 11 }}>📊 Showing {paginatedVouchers.length} of {processed.length}</span>
+                </div>
+
+                {/* Search, Sort, and Page Size Toolbar */}
+                <div style={{
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  margin: '10px 0 16px 0',
+                  border: '1px solid rgba(255, 255, 255, 0.06)'
+                }}>
+                  {/* Search / Filter */}
+                  <div style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <SearchIcon size={14} color="#8E8E93" />
+                    <input
+                      type="text"
+                      value={voucherSearch}
+                      onChange={e => { setVoucherSearch(e.target.value); setVoucherPage(1); }}
+                      placeholder="Search code or expiry..."
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        color: '#fff',
+                        fontSize: '13px',
+                        width: '100%',
+                      }}
+                    />
+                    {voucherSearch && (
+                      <button
+                        onClick={() => { setVoucherSearch(''); setVoucherPage(1); }}
+                        style={{ background: 'transparent', border: 'none', color: '#8E8E93', cursor: 'pointer', fontSize: 12 }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sort */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#8E8E93' }}>Sort:</span>
+                    <select
+                      value={voucherSort}
+                      onChange={e => { setVoucherSort(e.target.value); setVoucherPage(1); }}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 6,
+                        color: '#fff',
+                        fontSize: 12,
+                        padding: '4px 8px',
+                      }}
+                    >
+                      <option value="default">Creation Order</option>
+                      <option value="code-asc">Code (A → Z)</option>
+                      <option value="code-desc">Code (Z → A)</option>
+                      <option value="expiry">Expiry Duration</option>
+                    </select>
+                  </div>
+
+                  {/* Per Page */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#8E8E93' }}>Show:</span>
+                    <select
+                      value={voucherPageSize}
+                      onChange={e => {
+                        setVoucherPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value));
+                        setVoucherPage(1);
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 6,
+                        color: '#fff',
+                        fontSize: 12,
+                        padding: '4px 8px',
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value="all">All</option>
+                    </select>
+                  </div>
+                </div>
+
+                {paginatedVouchers.length > 0 ? (
+                  <>
+                    {/* Voucher Grid */}
+                    <div className="sa-voucher-grid">
+                      {paginatedVouchers.map((v, i) => (
+                        <div key={v.code || i} className="sa-voucher-card-mini" onClick={() => copyCode(v.code)}>
+                          <div className="sa-voucher-card-code">
+                            <code>{v.code}</code>
+                            <span className="sa-copy-icon">{copiedPin === v.code ? '✓' : '📋'}</span>
+                          </div>
+                          <div className="sa-voucher-card-meta">
+                            <span>{v.expiry}</span>
+                            <span className="sa-badge sa-badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>Active</span>
+                          </div>
                         </div>
-                        <div className="sa-voucher-card-meta">
-                          <span>{v.expiry}</span>
-                          <span className="sa-badge sa-badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>Active</span>
-                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && !isAll && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, padding: '10px 0' }}>
+                        <button
+                          className="sa-btn-pill-small"
+                          disabled={currentPage <= 1}
+                          onClick={() => setVoucherPage(1)}
+                          title="First Page"
+                        >
+                          « First
+                        </button>
+                        <button
+                          className="sa-btn-pill-small"
+                          disabled={currentPage <= 1}
+                          onClick={() => setVoucherPage(p => Math.max(1, p - 1))}
+                          title="Previous Page"
+                        >
+                          ‹ Prev
+                        </button>
+                        <span style={{
+                          fontSize: 12,
+                          color: '#C4B5FD',
+                          padding: '4px 10px',
+                          background: 'rgba(114, 87, 255, 0.12)',
+                          borderRadius: 6,
+                          fontWeight: 600
+                        }}>
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          className="sa-btn-pill-small"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setVoucherPage(p => Math.min(totalPages, p + 1))}
+                          title="Next Page"
+                        >
+                          Next ›
+                        </button>
+                        <button
+                          className="sa-btn-pill-small"
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setVoucherPage(totalPages)}
+                          title="Last Page"
+                        >
+                          Last »
+                        </button>
                       </div>
-                    ))}
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px', color: '#8E8E93', fontSize: 13 }}>
+                    No vouchers match your filter criteria.
                   </div>
                 )}
+
+                {/* ── Card Customization & Export ── */}
+                <div className="sa-glass-card" style={{ marginTop: 16, background: 'rgba(114, 87, 255, 0.04)', border: '1px solid rgba(114, 87, 255, 0.15)' }}>
+                  <div className="sa-card-header">
+                    <div>
+                      <h3 className="sa-card-title">🎨 Print & Download Cards</h3>
+                      <p className="sa-card-sub">Export vouchers as beautiful printable cards with customizable layouts</p>
+                    </div>
+                  </div>
+
+                  <div className="sa-form-grid-3">
+                    <div className="sa-field-box">
+                      <label>Card Style</label>
+                      <select value={cardOptions.style} onChange={e => setCardOptions({ ...cardOptions, style: e.target.value })}>
+                        <option value="minimal">Minimal (Clean)</option>
+                        <option value="branded">Branded (Purple)</option>
+                        <option value="premium">Premium (Gold/Dark)</option>
+                      </select>
+                    </div>
+                    <div className="sa-field-box">
+                      <label>Cards Per Row</label>
+                      <select value={cardOptions.cols} onChange={e => setCardOptions({ ...cardOptions, cols: Number(e.target.value) })}>
+                        <option value={2}>2 Cards</option>
+                        <option value={3}>3 Cards</option>
+                      </select>
+                    </div>
+                    <div className="sa-field-box">
+                      <label>Rows Per Page</label>
+                      <select value={cardOptions.rows} onChange={e => setCardOptions({ ...cardOptions, rows: Number(e.target.value) })}>
+                        <option value={3}>3 Rows</option>
+                        <option value={4}>4 Rows (Default)</option>
+                        <option value={5}>5 Rows</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#C4B5FD' }}>Export Scope:</span>
+                      <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#fff' }}>
+                        <input
+                          type="radio"
+                          name="printScope"
+                          value="all"
+                          checked={printScope === 'all'}
+                          onChange={() => setPrintScope('all')}
+                        />
+                        <span>All Matching ({processed.length})</span>
+                      </label>
+                      <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#fff' }}>
+                        <input
+                          type="radio"
+                          name="printScope"
+                          value="page"
+                          checked={printScope === 'page'}
+                          onChange={() => setPrintScope('page')}
+                        />
+                        <span>Current Page ({paginatedVouchers.length})</span>
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <label className="sa-checkbox-label" style={{ fontSize: 12 }}>
+                        <input type="checkbox" checked={cardOptions.showSsid} onChange={e => setCardOptions({ ...cardOptions, showSsid: e.target.checked })} />
+                        <span>Show SSID</span>
+                      </label>
+                      <label className="sa-checkbox-label" style={{ fontSize: 12 }}>
+                        <input type="checkbox" checked={cardOptions.showPrice} onChange={e => setCardOptions({ ...cardOptions, showPrice: e.target.checked })} />
+                        <span>Show Price</span>
+                      </label>
+                      <label className="sa-checkbox-label" style={{ fontSize: 12 }}>
+                        <input type="checkbox" checked={cardOptions.showExpiry} onChange={e => setCardOptions({ ...cardOptions, showExpiry: e.target.checked })} />
+                        <span>Show Expiry</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="sa-plan-form-footer" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 14 }}>
+                    <button className="sa-btn-primary" onClick={handlePrintCards} disabled={cardExporting || exportCount === 0}>
+                      <PrinterIcon size={16} /> 🖨️ Print {exportCount} Cards
+                    </button>
+                    <button className="sa-btn-primary" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }} onClick={handleDownloadCardsPdf} disabled={cardExporting || exportCount === 0}>
+                      <DownloadIcon size={16} /> 📄 Download PDF ({exportCount})
+                    </button>
+                    <button className="sa-btn-pill-small" onClick={handleDownloadCardsImage} disabled={cardExporting || exportCount === 0}>
+                      🖼️ Download Image ({exportCount})
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -3089,6 +3583,157 @@ export default function SuperAdminPage() {
                       <span className="sa-log-time">{log.time || ''}</span>
                       <span className="sa-log-topics">{log.topics || ''}</span>
                       <span className="sa-log-message">{log.message || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TAB: WALLED GARDEN ═══ */}
+        {activeTab === 'walled-garden' && (
+          <div className="sa-tab-body">
+            {/* App Access */}
+            <div className="sa-glass-card">
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">🌐 App Access (Bypass)</h3>
+                  <p className="sa-card-sub">Allow users to access this app and make purchases without an active Wi-Fi plan</p>
+                </div>
+                <button className="sa-btn-pill-small" onClick={fetchWalledGarden} disabled={wgLoading}>
+                  <RefreshIcon size={14} /> {wgLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              <p className="sa-card-sub" style={{ padding: '0 4px', marginBottom: 12 }}>
+                Your app domain (<strong>{mikrotikForm.hotspot_url || 'asuktech.net'}</strong>) should be added to allow users to purchase plans.
+              </p>
+              <div className="sa-plan-form-footer">
+                <button className="sa-btn-primary" onClick={() => handleAddWalledGarden(`*.${mikrotikForm.hotspot_url || 'asuktech.net'}`, 'app', 'App Portal')} disabled={wgSyncing}>
+                  {wgSyncing ? 'Adding...' : `Add *.${mikrotikForm.hotspot_url || 'asuktech.net'} to Bypass`}
+                </button>
+              </div>
+            </div>
+
+            {/* Payment Gateways */}
+            <div className="sa-glass-card" style={{ marginTop: 20 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">💳 Payment Gateways</h3>
+                  <p className="sa-card-sub">Allow checkout and payment processing without an active plan</p>
+                </div>
+                <button className="sa-btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => handleBulkAddWalledGarden(PAYMENT_GATEWAYS, 'payment')} disabled={wgSyncing}>
+                  {wgSyncing ? 'Syncing...' : '➕ Add All Payment Gateways'}
+                </button>
+              </div>
+              <div className="sa-wg-list">
+                {PAYMENT_GATEWAYS.map((gw, i) => {
+                  const isActive = walledGardenEntries.some(e => (e['dst-host'] || '').toLowerCase() === gw.domain.toLowerCase());
+                  return (
+                    <div key={i} className="sa-wg-item">
+                      <div className="sa-wg-item-info">
+                        <span className={`sa-wg-dot ${isActive ? 'active' : ''}`} />
+                        <code className="sa-wg-domain">{gw.domain}</code>
+                        <span className="sa-badge sa-badge-purple" style={{ fontSize: 9, padding: '1px 6px' }}>{gw.label}</span>
+                      </div>
+                      {!isActive ? (
+                        <button className="sa-btn-pill-small" style={{ fontSize: 11 }} onClick={() => handleAddWalledGarden(gw.domain, 'payment', gw.label)} disabled={wgSyncing}>Add</button>
+                      ) : (
+                        <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Active</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Nigerian Banks */}
+            <div className="sa-glass-card" style={{ marginTop: 20 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">🏦 Bank Portals</h3>
+                  <p className="sa-card-sub">Allow banking apps and websites for payments without an active plan</p>
+                </div>
+                <button className="sa-btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => handleBulkAddWalledGarden(NIGERIAN_BANKS, 'bank')} disabled={wgSyncing}>
+                  {wgSyncing ? 'Syncing...' : '➕ Add All Banks'}
+                </button>
+              </div>
+              <div className="sa-wg-list">
+                {NIGERIAN_BANKS.map((bank, i) => {
+                  const isActive = walledGardenEntries.some(e => (e['dst-host'] || '').toLowerCase() === bank.domain.toLowerCase());
+                  return (
+                    <div key={i} className="sa-wg-item">
+                      <div className="sa-wg-item-info">
+                        <span className={`sa-wg-dot ${isActive ? 'active' : ''}`} />
+                        <code className="sa-wg-domain">{bank.domain}</code>
+                        <span className="sa-badge sa-badge-blue" style={{ fontSize: 9, padding: '1px 6px' }}>{bank.label}</span>
+                      </div>
+                      {!isActive ? (
+                        <button className="sa-btn-pill-small" style={{ fontSize: 11 }} onClick={() => handleAddWalledGarden(bank.domain, 'bank', bank.label)} disabled={wgSyncing}>Add</button>
+                      ) : (
+                        <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Active</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom URL */}
+            <div className="sa-glass-card" style={{ marginTop: 20 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">🔗 Custom URL</h3>
+                  <p className="sa-card-sub">Add any domain to the bypass list</p>
+                </div>
+              </div>
+              <div className="sa-form-grid-3">
+                <div className="sa-field-box">
+                  <label>Domain Pattern</label>
+                  <input value={wgCustomUrl} onChange={e => setWgCustomUrl(e.target.value)}
+                    placeholder="*.example.com or example.com" />
+                </div>
+                <div className="sa-field-box">
+                  <label>Label (optional)</label>
+                  <input value={wgCustomComment} onChange={e => setWgCustomComment(e.target.value)}
+                    placeholder="e.g. My Service" />
+                </div>
+              </div>
+              <div className="sa-plan-form-footer">
+                <button className="sa-btn-primary" onClick={handleAddCustomUrl} disabled={wgSyncing || !wgCustomUrl.trim()}>
+                  {wgSyncing ? 'Adding...' : '➕ Add Custom URL'}
+                </button>
+              </div>
+            </div>
+
+            {/* Active Entries */}
+            <div className="sa-glass-card" style={{ marginTop: 20 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">📋 Active Bypass Entries ({walledGardenEntries.length})</h3>
+                  <p className="sa-card-sub">Currently whitelisted domains on the MikroTik router</p>
+                </div>
+                <button className="sa-btn-pill-small" onClick={fetchWalledGarden} disabled={wgLoading}>
+                  <RefreshIcon size={14} /> Refresh
+                </button>
+              </div>
+              {wgLoading ? (
+                <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
+              ) : walledGardenEntries.length === 0 ? (
+                <p className="sa-card-sub" style={{ textAlign: 'center', padding: 24 }}>No walled garden entries found. Add domains above to get started.</p>
+              ) : (
+                <div className="sa-wg-list">
+                  {walledGardenEntries.map((entry, i) => (
+                    <div key={`${entry._source || 'wg'}-${entry['.id'] || i}`} className="sa-wg-item">
+                      <div className="sa-wg-item-info">
+                        <span className="sa-wg-dot active" />
+                        <code className="sa-wg-domain">{entry['dst-host'] || entry['dst-address'] || '—'}</code>
+                        {entry._source && <span className="sa-badge" style={{ fontSize: 9, padding: '1px 6px', background: entry._source === 'ip' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: entry._source === 'ip' ? '#10b981' : '#3b82f6' }}>{entry._source === 'ip' ? 'HTTPS/IP' : 'HTTP'}</span>}
+                        {entry.comment && <span className="sa-badge sa-badge-purple" style={{ fontSize: 9, padding: '1px 6px' }}>{entry.comment}</span>}
+                      </div>
+                      <button className="sa-btn-danger-small" onClick={() => handleRemoveWalledGarden(entry['.id'], entry['dst-host'] || entry['dst-address'], entry._source)} disabled={wgSyncing}>
+                        <TrashIcon size={14} />
+                      </button>
                     </div>
                   ))}
                 </div>

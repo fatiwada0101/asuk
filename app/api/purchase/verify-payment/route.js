@@ -42,22 +42,22 @@ export async function POST(request) {
     }
 
 
-    // 1. Fetch plan details for devices & speed
-    let planDevices = 1;
-    let planUploadSpeed = '12M';
-    let planDownloadSpeed = '12M';
-
-    // Try to find plan by plan_id or by name
+    // 1. Fetch authoritative plan details directly from DB (prevents price/speed tampering)
     const planQuery = plan_id
-      ? supabaseAdmin.from('plans').select('devices, upload_speed, download_speed').eq('id', plan_id).maybeSingle()
-      : supabaseAdmin.from('plans').select('devices, upload_speed, download_speed').eq('name', plan_name).maybeSingle();
+      ? supabaseAdmin.from('plans').select('*').eq('id', plan_id).maybeSingle()
+      : supabaseAdmin.from('plans').select('*').eq('name', plan_name).maybeSingle();
 
     const { data: planData } = await planQuery;
-    if (planData) {
-      planDevices = Number(planData.devices) || 1;
-      planUploadSpeed = planData.upload_speed || '12M';
-      planDownloadSpeed = planData.download_speed || '12M';
+    if (!planData) {
+      return NextResponse.json({ error: 'Selected internet plan was not found in catalog' }, { status: 400 });
     }
+
+    const authoritativePrice = Number(planData.price);
+    const effectivePlanName = planData.name || plan_name;
+    const effectiveDuration = planData.duration || duration || '24h';
+    let planDevices = Number(planData.devices) || 1;
+    const planUploadSpeed = planData.upload_speed || '12M';
+    const planDownloadSpeed = planData.download_speed || '12M';
 
     // Check global hotspot sharing toggle and expiry mode
     let expiryMode = 'elapsed'; // default
@@ -117,10 +117,15 @@ export async function POST(request) {
       }
 
       const paidAmount = Number(flwData.data?.amount || 0);
-      const expectedAmount = planData?.price ? Number(planData.price) : numericPrice;
+      const expectedAmount = authoritativePrice;
 
       if (paidAmount < expectedAmount) {
         return NextResponse.json({ error: `Payment amount (₦${paidAmount}) does not match plan price (₦${expectedAmount})` }, { status: 400 });
+      }
+
+      // Check transaction reference if returned by gateway
+      if (flwData.data?.tx_ref && tx_ref && flwData.data.tx_ref !== tx_ref) {
+        return NextResponse.json({ error: 'Payment transaction reference mismatch' }, { status: 400 });
       }
 
       if (flwData.data?.currency && flwData.data.currency !== 'NGN') {
@@ -152,9 +157,9 @@ export async function POST(request) {
         routerResult = await createOrQueueHotspotUser({
           code,
           password: code,
-          profile: plan_name,
-          limitUptime: uptimeMap[duration] || '1d',
-          comment: `Online Pay: ${email || phone || 'Guest'} - ${plan_name} - ₦${numericPrice} [Ref: ${tx_ref}]`,
+          profile: effectivePlanName,
+          limitUptime: uptimeMap[effectiveDuration] || '1d',
+          comment: `Online Pay: ${email || phone || 'Guest'} - ${effectivePlanName} - ₦${authoritativePrice} [Ref: ${tx_ref}]`,
           shared_users: planDevices,
           rate_limit: rateLimit,
           expiry_mode: expiryMode,
@@ -165,14 +170,14 @@ export async function POST(request) {
         // Atomic, race-condition safe claim from fallback pool (strict plan isolation)
         const { data: claimedRows, error: claimErr } = await supabaseAdmin
           .rpc('claim_fallback_voucher', {
-            p_profile_name: plan_name,
-            p_plan_id: plan_id || null,
+            p_profile_name: effectivePlanName,
+            p_plan_id: planData.id || plan_id || null,
             p_user_id: user_id || null,
           });
 
         if (!claimErr && claimedRows && claimedRows.length > 0) {
           const claimed = claimedRows[0];
-          console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} after router API failure`);
+          console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${effectivePlanName} after router API failure`);
           code = claimed.voucher_code;
           isFallback = true;
         } else {
@@ -180,32 +185,32 @@ export async function POST(request) {
           // We do NOT insert a voucher row here — the user must contact support with the tx_ref
           return NextResponse.json({
             success: false,
-            error: `Payment was verified (Ref: ${tx_ref}), but the router API failed ("${routerErr.message}") and no fallback vouchers are available in stock for "${plan_name}". Please contact support with Ref: ${tx_ref}.`,
+            error: `Payment was verified (Ref: ${tx_ref}), but the router API failed ("${routerErr.message}") and no fallback vouchers are available in stock for "${effectivePlanName}". Please contact support with Ref: ${tx_ref}.`,
             pending_router: true,
           }, { status: 502 });
         }
       }
     } else {
       // Router is NOT configured in settings: trigger fallback pool directly
-      console.log(`MikroTik router is not configured in settings. Triggering fallback pool directly for "${plan_name}"`);
+      console.log(`MikroTik router is not configured in settings. Triggering fallback pool directly for "${effectivePlanName}"`);
 
       const { data: claimedRows, error: claimErr } = await supabaseAdmin
         .rpc('claim_fallback_voucher', {
-          p_profile_name: plan_name,
-          p_plan_id: plan_id || null,
+          p_profile_name: effectivePlanName,
+          p_plan_id: planData.id || plan_id || null,
           p_user_id: user_id || null,
         });
 
       if (!claimErr && claimedRows && claimedRows.length > 0) {
         const claimed = claimedRows[0];
-        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${plan_name} (Router not configured)`);
+        console.log(`Atomically claimed fallback voucher ${claimed.voucher_code} for ${effectivePlanName} (Router not configured)`);
         code = claimed.voucher_code;
         isFallback = true;
       } else {
         // Router not configured + no fallback vouchers — return error without inserting
         return NextResponse.json({
           success: false,
-          error: `Payment was verified (Ref: ${tx_ref}), but the Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${plan_name}". Please contact support with Ref: ${tx_ref}.`,
+          error: `Payment was verified (Ref: ${tx_ref}), but the Wi-Fi router is not yet configured in settings and no fallback vouchers are in reserve for "${effectivePlanName}". Please contact support with Ref: ${tx_ref}.`,
           pending_router: true,
         }, { status: 502 });
       }
@@ -219,14 +224,14 @@ export async function POST(request) {
         .insert({
           user_id: user_id || null,
           type: 'voucher_purchase',
-          amount: numericPrice,
+          amount: authoritativePrice,
           status: 'successful',
           payment_method: 'card',
           flw_ref: tx_ref || null,
           metadata: {
-            plan_name: plan_name,
+            plan_name: effectivePlanName,
             voucher_code: code,
-            duration: duration || null,
+            duration: effectiveDuration || null,
           },
         })
         .select('id')
@@ -242,8 +247,8 @@ export async function POST(request) {
       .insert({
         user_id: user_id || null,
         voucher_code: code,
-        profile_name: plan_name,
-        price: numericPrice,
+        profile_name: effectivePlanName,
+        price: authoritativePrice,
         tx_ref: tx_ref || null,
         transaction_id: txId,
         is_used: false,
@@ -255,7 +260,7 @@ export async function POST(request) {
         await supabaseAdmin.from('notifications').insert({
           user_id,
           title: isFallback ? 'Wi-Fi Pass Purchased (Backup Pool)' : 'Wi-Fi Pass Purchased',
-          message: `${plan_name} pass activated via card payment. Your code: ${code}`,
+          message: `${effectivePlanName} pass activated via card payment. Your code: ${code}`,
           type: 'voucher_purchase',
         });
       } catch (e) {}
@@ -264,10 +269,10 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       voucher_code: code,
-      plan: plan_name,
-      price: numericPrice,
+      plan: effectivePlanName,
+      price: authoritativePrice,
       router_id: routerResult?.routerId || null,
-      profile: routerResult?.profile || plan_name,
+      profile: routerResult?.profile || effectivePlanName,
       is_fallback: isFallback,
     });
   } catch (error) {
