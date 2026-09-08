@@ -31,7 +31,7 @@ export async function GET(request) {
     // 1. Check Supabase vouchers table
     const { data: dbVoucher } = await supabaseAdmin
       .from('vouchers')
-      .select('voucher_code, profile_name, price, is_used, created_at, status, expires_at')
+      .select('voucher_code, profile_name, price, is_used, created_at, status, expires_at, data_limit')
       .eq('voucher_code', code)
       .maybeSingle();
 
@@ -90,6 +90,7 @@ export async function GET(request) {
         valid: true,
         code: dbVoucher.voucher_code,
         plan_name: dbVoucher.profile_name,
+        data_limit: dbVoucher.data_limit || null,
         is_used: !!dbVoucher.is_used,
       });
     }
