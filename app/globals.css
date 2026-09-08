@@ -4496,12 +4496,28 @@ input, select, textarea {
   background: #3F3F46;
 }
 
+.receipt-btn-share {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.receipt-btn-share:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.25);
+}
+
 .receipt-modal-footer-hint {
   text-align: center;
   font-size: 10px;
   color: #71717A;
   margin-top: 12px;
   letter-spacing: 0.2px;
+}
+
+@media (max-width: 380px) {
+  .receipt-actions-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* Print Specific Media Optimization */
@@ -4520,5 +4536,6 @@ input, select, textarea {
     width: 100% !important;
   }
 }
+
 
 

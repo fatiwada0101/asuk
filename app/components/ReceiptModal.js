@@ -9,6 +9,7 @@ import {
   CheckIcon,
 } from './Icons';
 import {
+  formatCurrency,
   generatePassReceiptCanvas,
   generateTransactionReceiptCanvas,
   generateStatementCanvas,
@@ -32,6 +33,25 @@ export default function ReceiptModal({
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingImg, setDownloadingImg] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+
+  // Scroll lock and keyboard navigation (Escape to close)
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   // Render canvas whenever modal opens or data changes
   useEffect(() => {
@@ -159,6 +179,33 @@ export default function ReceiptModal({
     }
   };
 
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share;
+  const handleShare = async () => {
+    if (!canShare) return;
+    try {
+      if (type === 'pass') {
+        const code = data.voucher_code || data.code || '';
+        await navigator.share({
+          title: `${brandName} - Wi-Fi Pass`,
+          text: `My Wi-Fi Voucher PIN: ${code}\nNetwork: ${wifiSsid}\nPortal: http://${hotspotUrl}`,
+        });
+      } else if (type === 'transaction') {
+        await navigator.share({
+          title: `${brandName} - Payment Receipt`,
+          text: `Official Receipt: ${formatCurrency(data.amount || 0)} - Ref: ${data.flw_ref || data.id || ''}`,
+        });
+      } else {
+        await navigator.share({
+          title: `${brandName} - Account Statement`,
+          text: `Asuk Tech Account Statement - Balance: ${formatCurrency(data.walletBalance || 0)}`,
+        });
+      }
+      showFeedback('✓ Shared successfully!');
+    } catch (e) {
+      // User dismissed share
+    }
+  };
+
   const getTitle = () => {
     if (type === 'pass') return 'Wi-Fi Access Pass Receipt';
     if (type === 'transaction') return 'Transaction Payment Receipt';
@@ -211,8 +258,8 @@ export default function ReceiptModal({
             disabled={downloadingPdf}
             title="Download vector PDF document"
           >
-            <FileTextIcon size={18} color="#FFFFFF" />
-            <span>{downloadingPdf ? 'Exporting...' : 'PDF Document'}</span>
+            <FileTextIcon size={17} color="#FFFFFF" />
+            <span>{downloadingPdf ? 'Exporting...' : 'PDF Doc'}</span>
           </button>
 
           <button
@@ -222,8 +269,8 @@ export default function ReceiptModal({
             disabled={downloadingImg}
             title="Save high-resolution image"
           >
-            <ImageIcon size={18} color="#18181B" />
-            <span>{downloadingImg ? 'Saving...' : 'Save as Image'}</span>
+            <ImageIcon size={17} color="#18181B" />
+            <span>{downloadingImg ? 'Saving...' : 'Image'}</span>
           </button>
 
           <button
@@ -232,13 +279,24 @@ export default function ReceiptModal({
             onClick={handlePrint}
             title="Print thermal or paper receipt"
           >
-            <PrinterIcon size={18} color="#18181B" />
+            <PrinterIcon size={17} color="#F4F4F5" />
             <span>Print</span>
           </button>
+
+          {canShare && (
+            <button
+              type="button"
+              className="receipt-btn receipt-btn-share"
+              onClick={handleShare}
+              title="Share receipt"
+            >
+              <span>🔗 Share</span>
+            </button>
+          )}
         </div>
 
         <div className="receipt-modal-footer-hint">
-          <span>Encrypted with SHA-256 validation • Printable on 80mm thermal & A4 printers</span>
+          <span>SHA-256 Authenticated • Compatible with 80mm thermal & A4 desktop printers</span>
         </div>
       </div>
     </div>

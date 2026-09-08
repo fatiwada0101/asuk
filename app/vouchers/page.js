@@ -342,11 +342,13 @@ export default function VouchersPage() {
             payment_method: selectedReceiptVoucher.payment_method || 'Online Payment',
             created_at: selectedReceiptVoucher.created_at,
             is_used: selectedReceiptVoucher.is_used,
+            user_email: user?.email || '',
           }}
           brandName={appName}
           wifiSsid={networkInfo.wifi_ssid}
           hotspotUrl={networkInfo.hotspot_url}
         />
+
       )}
 
       <BottomNav />

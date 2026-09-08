@@ -776,11 +776,13 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
               payment_method: paymentMethod === 'wallet' ? 'Wallet Balance' : 'Card / Bank Transfer',
               created_at: new Date().toISOString(),
               duration: plan?.duration ? `${plan.duration} Hours` : 'Standard Access',
+              user_email: user?.email || guestEmail || '',
             }}
             brandName={appName}
             wifiSsid={routerStatus.wifi_ssid}
             hotspotUrl={routerStatus.hotspot_url}
           />
+
         )}
       </div>
     </div>

@@ -655,11 +655,13 @@ function VoucherStatusContent() {
           duration: data?.limit_uptime_seconds ? `${Math.round(data.limit_uptime_seconds / 3600)} Hours` : 'Standard Access',
           created_at: new Date().toISOString(),
           is_used: (data?.used_seconds || 0) > 0,
+          user_email: user?.email || '',
         }}
         brandName={appName}
         wifiSsid={networkInfo.wifi_ssid}
         hotspotUrl={networkInfo.hotspot_url}
       />
+
 
       <BottomNav />
       {toast && <div className="toast show">{toast}</div>}
