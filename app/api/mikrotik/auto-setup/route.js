@@ -387,31 +387,45 @@ export async function POST(request) {
         appDomains.push(`*${hotspotUrl}*`);
       }
 
-      // Common domains needed for captive portal to work
+      // Common domains needed for captive portal to work (HTTP + HTTPS)
       const walledGardenDomains = [
         ...appDomains,
-        '*.vercel.app',           // Vercel hosting
-        '*.flutterwave.com',      // Payment gateway
-        '*.supabase.co',          // Backend
-        '*.supabase.in',          // Backend alt
-        '*.googleapis.com',       // Google Fonts / APIs
-        '*.gstatic.com',          // Google static assets
-        '*.cloudflare.com',       // CDN
+        'www.asuk.tech',                 // Portal domain
+        'asuk.tech',                     // Apex domain
+        '*.asuk.tech',                   // Asuk Tech wildcards
+        'vtvzxbyxgotcathjxivo.supabase.co', // Core Supabase backend
+        '*.supabase.co',                 // Backend APIs
+        '*.supabase.in',                 // Backend alt
+        '*.vercel.app',                  // Vercel hosting
+        '*.flutterwave.com',             // Payment gateway
+        '*.googleapis.com',              // Google Fonts / APIs
+        '*.gstatic.com',                 // Google static assets
+        '*.cloudflare.com',              // CDN
         'connectivitycheck.gstatic.com', // Android captive portal detection
-        'captive.apple.com',      // iOS captive portal detection
-        '*.msftconnecttest.com',  // Windows captive portal detection
+        'captive.apple.com',             // iOS captive portal detection
+        '*.msftconnecttest.com',         // Windows captive portal detection
       ];
 
       let wgCreated = 0;
       for (const domain of walledGardenDomains) {
         if (!existingWGHosts.some(h => h === domain)) {
           try {
+            // HTTP-level (allow)
             await mikrotikCall('/rest/ip/hotspot/walled-garden/add', 'POST', {
               action: 'allow',
               'dst-host': domain,
               comment: 'Asuk Tech Auto Setup',
             });
             wgCreated++;
+          } catch {}
+
+          try {
+            // IP-level (accept, critical for HTTPS/Supabase)
+            await mikrotikCall('/rest/ip/hotspot/walled-garden/ip/add', 'POST', {
+              action: 'accept',
+              'dst-host': domain,
+              comment: 'Asuk Tech Auto Setup (HTTPS)',
+            });
           } catch {}
         }
       }

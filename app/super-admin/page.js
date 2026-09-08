@@ -2344,6 +2344,14 @@ export default function SuperAdminPage() {
     { domain: '*.fcmb.com', label: 'FCMB' },
   ];
 
+  const CORE_SYSTEM_DOMAINS = [
+    { domain: 'www.asuk.tech', label: 'Asuk Tech Portal (Default)' },
+    { domain: 'asuk.tech', label: 'Asuk Tech Apex' },
+    { domain: '*.asuk.tech', label: 'Asuk Tech Wildcard' },
+    { domain: 'vtvzxbyxgotcathjxivo.supabase.co', label: 'Supabase Cloud API (Default)' },
+    { domain: '*.supabase.co', label: 'Supabase Global APIs' },
+  ];
+
   const PAYMENT_GATEWAYS = [
     { domain: '*.flutterwave.com', label: 'Flutterwave' },
     { domain: '*.flw.io', label: 'Flutterwave CDN' },
@@ -4001,24 +4009,40 @@ export default function SuperAdminPage() {
         {/* ═══ TAB: WALLED GARDEN ═══ */}
         {activeTab === 'walled-garden' && (
           <div className="sa-tab-body">
-            {/* App Access */}
+            {/* Core App & Database Bypass (Defaults) */}
             <div className="sa-glass-card">
               <div className="sa-card-header">
                 <div>
-                  <h3 className="sa-card-title">🌐 App Access (Bypass)</h3>
-                  <p className="sa-card-sub">Allow users to access this app and make purchases without an active Wi-Fi plan</p>
+                  <h3 className="sa-card-title">🌐 Core App & Database Bypass (Defaults)</h3>
+                  <p className="sa-card-sub">Pre-authenticated access for the Asuk Tech web portal and Supabase cloud database</p>
                 </div>
-                <button className="sa-btn-pill-small" onClick={fetchWalledGarden} disabled={wgLoading}>
-                  <RefreshIcon size={14} /> {wgLoading ? 'Loading...' : 'Refresh'}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="sa-btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => handleBulkAddWalledGarden(CORE_SYSTEM_DOMAINS, 'core')} disabled={wgSyncing}>
+                    {wgSyncing ? 'Syncing...' : '⚡ Add All Core Defaults'}
+                  </button>
+                  <button className="sa-btn-pill-small" onClick={fetchWalledGarden} disabled={wgLoading}>
+                    <RefreshIcon size={14} /> {wgLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
-              <p className="sa-card-sub" style={{ padding: '0 4px', marginBottom: 12 }}>
-                Your app domain (<strong>{mikrotikForm.hotspot_url || 'asuktech.net'}</strong>) should be added to allow users to purchase plans.
-              </p>
-              <div className="sa-plan-form-footer">
-                <button className="sa-btn-primary" onClick={() => handleAddWalledGarden(`*.${mikrotikForm.hotspot_url || 'asuktech.net'}`, 'app', 'App Portal')} disabled={wgSyncing}>
-                  {wgSyncing ? 'Adding...' : `Add *.${mikrotikForm.hotspot_url || 'asuktech.net'} to Bypass`}
-                </button>
+              <div className="sa-wg-list">
+                {CORE_SYSTEM_DOMAINS.map((core, i) => {
+                  const isActive = walledGardenEntries.some(e => (e['dst-host'] || '').toLowerCase() === core.domain.toLowerCase());
+                  return (
+                    <div key={i} className="sa-wg-item">
+                      <div className="sa-wg-item-info">
+                        <span className={`sa-wg-dot ${isActive ? 'active' : ''}`} />
+                        <code className="sa-wg-domain">{core.domain}</code>
+                        <span className="sa-badge sa-badge-purple" style={{ fontSize: 9, padding: '1px 6px' }}>{core.label}</span>
+                      </div>
+                      {!isActive ? (
+                        <button className="sa-btn-pill-small" style={{ fontSize: 11 }} onClick={() => handleAddWalledGarden(core.domain, 'core', core.label)} disabled={wgSyncing}>Add</button>
+                      ) : (
+                        <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Active</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
