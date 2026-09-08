@@ -3,27 +3,35 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../components/BottomNav';
+import ReceiptModal from '../components/ReceiptModal';
 import {
   ChevronLeftIcon,
   ShieldIcon,
   WifiIcon,
   CheckIcon,
   ArrowUpRightIcon,
+  ReceiptIcon,
+  DownloadIcon,
 } from '../components/Icons';
+
 
 export default function VouchersPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { appName } = useBranding();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState('');
+  const [selectedReceiptVoucher, setSelectedReceiptVoucher] = useState(null);
   const [toast, setToast] = useState('');
   const [networkInfo, setNetworkInfo] = useState({
     hotspot_url: 'asuktech.net',
     wifi_ssid: 'Asuk Tech Wi-Fi',
   });
+
 
   useEffect(() => {
     fetch('/api/settings/public')
@@ -276,6 +284,29 @@ export default function VouchersPage() {
 
                   <button
                     type="button"
+                    onClick={() => setSelectedReceiptVoucher(v)}
+                    style={{
+                      padding: '8px 11px',
+                      background: '#FFFFFF',
+                      color: '#0F172A',
+                      borderRadius: '999px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      border: '1.5px solid #E2E8F0',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}
+                    title="Download or Print Receipt (PDF & Image)"
+                  >
+                    <ReceiptIcon size={14} color="#0F172A" />
+                    <span>Receipt</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => copyCode(v.voucher_code)}
                     style={{
                       padding: '8px 14px',
@@ -298,8 +329,29 @@ export default function VouchersPage() {
         </div>
       )}
 
+      {/* Pass Receipt Modal */}
+      {selectedReceiptVoucher && (
+        <ReceiptModal
+          isOpen={!!selectedReceiptVoucher}
+          onClose={() => setSelectedReceiptVoucher(null)}
+          type="pass"
+          data={{
+            plan_name: selectedReceiptVoucher.profile_name || 'Wi-Fi Access Pass',
+            voucher_code: selectedReceiptVoucher.voucher_code,
+            price: selectedReceiptVoucher.price,
+            payment_method: selectedReceiptVoucher.payment_method || 'Online Payment',
+            created_at: selectedReceiptVoucher.created_at,
+            is_used: selectedReceiptVoucher.is_used,
+          }}
+          brandName={appName}
+          wifiSsid={networkInfo.wifi_ssid}
+          hotspotUrl={networkInfo.hotspot_url}
+        />
+      )}
+
       <BottomNav />
       {toast && <div className="toast show">{toast}</div>}
     </div>
   );
 }
+

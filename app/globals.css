@@ -4310,3 +4310,215 @@ input, select, textarea {
   }
 }
 
+/* ===================================================
+   RECEIPT MODAL & EXPORT STYLES
+   Modern Thermal & Digital Receipt Aesthetics
+   =================================================== */
+
+.receipt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: receiptFadeIn 0.2s ease-out;
+}
+
+@keyframes receiptFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.receipt-modal-card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #141417;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: receiptSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes receiptSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.receipt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.receipt-modal-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #7C3AED;
+  background: rgba(124, 58, 237, 0.15);
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.receipt-modal-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.receipt-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #A1A1AA;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.receipt-modal-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+}
+
+.receipt-status-banner {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10B981;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  animation: receiptFadeIn 0.2s ease-out;
+}
+
+.receipt-preview-viewport {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 56vh;
+  border-radius: 16px;
+  background: #0A0A0C;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+.receipt-canvas-wrap {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.receipt-actions-toolbar {
+  display: grid;
+  grid-template-columns: 1.3fr 1.3fr 0.9fr;
+  gap: 8px;
+}
+
+.receipt-btn {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.receipt-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.receipt-btn-pdf {
+  background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+}
+
+.receipt-btn-pdf:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.5);
+}
+
+.receipt-btn-img {
+  background: #FFFFFF;
+  color: #141417;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.receipt-btn-img:hover:not(:disabled) {
+  background: #F4F4F5;
+  transform: translateY(-1px);
+}
+
+.receipt-btn-print {
+  background: #27272A;
+  color: #F4F4F5;
+}
+
+.receipt-btn-print:hover:not(:disabled) {
+  background: #3F3F46;
+}
+
+.receipt-modal-footer-hint {
+  text-align: center;
+  font-size: 10px;
+  color: #71717A;
+  margin-top: 12px;
+  letter-spacing: 0.2px;
+}
+
+/* Print Specific Media Optimization */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .receipt-canvas-wrap,
+  .receipt-canvas-wrap * {
+    visibility: visible !important;
+  }
+  .receipt-canvas-wrap {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+}
+
+

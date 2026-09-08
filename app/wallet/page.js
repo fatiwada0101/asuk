@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../components/BottomNav';
+import ReceiptModal from '../components/ReceiptModal';
 import {
   ChevronLeftIcon,
   MoreVerticalIcon,
@@ -18,7 +19,10 @@ import {
   TicketIcon,
   RefreshIcon,
   PlusIcon,
+  ReceiptIcon,
+  FileTextIcon,
 } from '../components/Icons';
+
 
 const PRESET_AMOUNTS = ['500', '1000', '2000', '5000', '10000'];
 
@@ -34,6 +38,8 @@ export default function WalletPage() {
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(false);
   const [flwConfig, setFlwConfig] = useState({ publicKey: '', enabled: false });
+  const [selectedReceiptTx, setSelectedReceiptTx] = useState(null);
+  const [showStatementModal, setShowStatementModal] = useState(false);
 
   // Real transaction data
   const [transactions, setTransactions] = useState([]);
@@ -685,13 +691,40 @@ export default function WalletPage() {
       {/* ── Transaction History Section with Segment Toggle ── */}
       <div style={{ marginBottom: '90px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#141417' }}>
-            Activity Ledger
-          </h2>
-          <span style={{ fontSize: '12px', color: '#71717A' }}>
-            {activeSegment === 'deposits' ? `${depositList.length} Deposits` : `${voucherList.length} Purchases`}
-          </span>
+          <div>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: '#141417' }}>
+              Activity Ledger
+            </h2>
+            <span style={{ fontSize: '11px', color: '#71717A' }}>
+              {depositList.length} Deposits • {voucherList.length} Purchases
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowStatementModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#FFFFFF',
+              border: '1.5px solid #E4E4E7',
+              padding: '6px 14px',
+              borderRadius: '999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: '#18181B',
+              cursor: 'pointer',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              transition: 'all 0.15s ease',
+            }}
+            title="Download full account transaction statement (PDF & Image)"
+          >
+            <FileTextIcon size={14} color="#7C3AED" />
+            <span>Statement</span>
+          </button>
         </div>
+
 
         {/* Capsule Segmented Toggle */}
         <div className="capsule-toggle-wrap" style={{ marginBottom: '16px' }}>
@@ -794,25 +827,50 @@ export default function WalletPage() {
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px', color: '#16A34A' }}>
-                      +{formatPrice(tx.amount)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#16A34A' }}>
+                        +{formatPrice(tx.amount)}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          display: 'inline-block',
+                          marginTop: '2px',
+                        }}
+                      >
+                        Successful
+                      </span>
                     </div>
-                    <span
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReceiptTx(tx)}
                       style={{
-                        fontSize: '10px',
+                        padding: '6px 10px',
+                        borderRadius: '10px',
+                        background: '#F4F4F5',
+                        border: '1px solid #E4E4E7',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '11px',
                         fontWeight: 700,
-                        background: '#DCFCE7',
-                        color: '#15803D',
-                        padding: '2px 8px',
-                        borderRadius: '8px',
-                        display: 'inline-block',
-                        marginTop: '2px',
+                        color: '#52525B',
                       }}
+                      title="Download or Print Receipt (PDF & Image)"
                     >
-                      Successful
-                    </span>
+                      <ReceiptIcon size={14} color="#71717A" />
+                      <span>Receipt</span>
+                    </button>
                   </div>
+
                 </div>
               ))
             )}
@@ -896,24 +954,48 @@ export default function WalletPage() {
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px', color: '#18181B' }}>
-                      -{formatPrice(tx.amount)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#18181B' }}>
+                        -{formatPrice(tx.amount)}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: '#EDE9FE',
+                          color: '#6D28D9',
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          display: 'inline-block',
+                          marginTop: '2px',
+                        }}
+                      >
+                        Voucher
+                      </span>
                     </div>
-                    <span
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReceiptTx(tx)}
                       style={{
-                        fontSize: '10px',
+                        padding: '6px 10px',
+                        borderRadius: '10px',
+                        background: '#F4F4F5',
+                        border: '1px solid #E4E4E7',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '11px',
                         fontWeight: 700,
-                        background: '#EDE9FE',
-                        color: '#6D28D9',
-                        padding: '2px 8px',
-                        borderRadius: '8px',
-                        display: 'inline-block',
-                        marginTop: '2px',
+                        color: '#52525B',
                       }}
+                      title="Download or Print Receipt (PDF & Image)"
                     >
-                      Voucher
-                    </span>
+                      <ReceiptIcon size={14} color="#71717A" />
+                      <span>Receipt</span>
+                    </button>
                   </div>
                 </div>
               ))
@@ -922,8 +1004,41 @@ export default function WalletPage() {
         )}
       </div>
 
+      {/* Transaction Receipt Modal */}
+      {selectedReceiptTx && (
+        <ReceiptModal
+          isOpen={!!selectedReceiptTx}
+          onClose={() => setSelectedReceiptTx(null)}
+          type="transaction"
+          data={{
+            ...selectedReceiptTx,
+            user_email: user?.email,
+          }}
+          brandName={appName}
+        />
+      )}
+
+      {/* Full Account Statement Modal */}
+      {showStatementModal && (
+        <ReceiptModal
+          isOpen={showStatementModal}
+          onClose={() => setShowStatementModal(false)}
+          type="statement"
+          data={{
+            brandName: appName,
+            userEmail: user?.email,
+            walletBalance: wallet ? parseFloat(wallet.balance) : 0,
+            totalDeposits: depositList.reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0),
+            totalSpent: voucherList.reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0),
+            transactions: transactions,
+          }}
+          brandName={appName}
+        />
+      )}
+
       <BottomNav />
       {toast && <div className="toast show">{toast}</div>}
     </div>
   );
 }
+

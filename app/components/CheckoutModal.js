@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import { supabase } from '../../lib/supabase';
+import ReceiptModal from './ReceiptModal';
+import { ReceiptIcon } from './Icons';
 
 /**
  * AutoConnectRedirect — after purchase, auto-login to MikroTik captive portal.
@@ -149,6 +151,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [voucherData, setVoucherData] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [flwConfig, setFlwConfig] = useState({ publicKey: '', enabled: false });
   // Mutex ref — prevents double-click race condition on pay buttons
   const processingRef = useRef(false);
@@ -712,6 +715,31 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
                 {copied ? '✓ Copied to Clipboard!' : '📋 Copy Voucher Code'}
               </button>
 
+              <button
+                type="button"
+                onClick={() => setShowReceipt(true)}
+                style={{
+                  marginTop: '10px',
+                  width: '100%',
+                  padding: '12px',
+                  background: 'rgba(124, 58, 237, 0.1)',
+                  color: '#7C3AED',
+                  border: '1.5px solid rgba(124, 58, 237, 0.25)',
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ReceiptIcon size={17} color="#7C3AED" />
+                <span>Download / Print Receipt (PDF & Image)</span>
+              </button>
+
               {/* Auto-Connect: redirect to captive portal with credentials */}
               <AutoConnectRedirect
                 code={voucherData.code}
@@ -734,7 +762,28 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
             </div>
           </div>
         )}
+
+        {/* Pass Receipt Modal */}
+        {voucherData && (
+          <ReceiptModal
+            isOpen={showReceipt}
+            onClose={() => setShowReceipt(false)}
+            type="pass"
+            data={{
+              plan_name: voucherData.plan || plan?.name || 'Wi-Fi Access Pass',
+              voucher_code: voucherData.code,
+              price: plan?.price || 0,
+              payment_method: paymentMethod === 'wallet' ? 'Wallet Balance' : 'Card / Bank Transfer',
+              created_at: new Date().toISOString(),
+              duration: plan?.duration ? `${plan.duration} Hours` : 'Standard Access',
+            }}
+            brandName={appName}
+            wifiSsid={routerStatus.wifi_ssid}
+            hotspotUrl={routerStatus.hotspot_url}
+          />
+        )}
       </div>
     </div>
   );
 }
+

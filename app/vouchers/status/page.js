@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import BottomNav from '../../components/BottomNav';
+import ReceiptModal from '../../components/ReceiptModal';
 import {
   ChevronLeftIcon,
   WifiIcon,
@@ -13,7 +14,9 @@ import {
   CheckIcon,
   RefreshIcon,
   ZapIcon,
+  ReceiptIcon,
 } from '../../components/Icons';
+
 
 function VoucherStatusContent() {
   const router = useRouter();
@@ -28,6 +31,7 @@ function VoucherStatusContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [toast, setToast] = useState('');
   const [networkInfo, setNetworkInfo] = useState({
     hotspot_url: 'asuktech.net',
@@ -593,6 +597,30 @@ function VoucherStatusContent() {
         </button>
 
         <button
+          type="button"
+          onClick={() => setShowReceipt(true)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            borderRadius: 999,
+            background: 'rgba(124, 58, 237, 0.08)',
+            color: '#7C3AED',
+            fontSize: '13.5px',
+            fontWeight: 800,
+            border: '1.5px solid rgba(124, 58, 237, 0.25)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <ReceiptIcon size={18} color="#7C3AED" />
+          <span>Download / Print Pass Receipt (PDF & Image)</span>
+        </button>
+
+        <button
           onClick={() => router.push('/vouchers')}
           style={{
             width: '100%',
@@ -615,10 +643,29 @@ function VoucherStatusContent() {
         </button>
       </div>
 
+      {/* Pass Receipt Modal */}
+      <ReceiptModal
+        isOpen={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        type="pass"
+        data={{
+          plan_name: data?.profile || 'Wi-Fi Access Pass',
+          voucher_code: data?.code || voucherCode,
+          price: data?.price || 0,
+          duration: data?.limit_uptime_seconds ? `${Math.round(data.limit_uptime_seconds / 3600)} Hours` : 'Standard Access',
+          created_at: new Date().toISOString(),
+          is_used: (data?.used_seconds || 0) > 0,
+        }}
+        brandName={appName}
+        wifiSsid={networkInfo.wifi_ssid}
+        hotspotUrl={networkInfo.hotspot_url}
+      />
+
       <BottomNav />
       {toast && <div className="toast show">{toast}</div>}
     </div>
   );
+
 }
 
 export default function VoucherStatusPage() {
