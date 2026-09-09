@@ -41,9 +41,10 @@ export async function GET() {
       app_name: 'Asuk Tech',
       logo_url: '',
       theme: 'violet',
+      app_url: process.env.NEXT_PUBLIC_APP_URL || '',
     };
 
-    let hotspotUrl = 'asuktech.net';
+    let hotspotUrl = '';
     let wifiSsid = 'Asuk Tech Wi-Fi';
 
     if (settings) {
@@ -57,6 +58,7 @@ export async function GET() {
             app_name: s.value.app_name || branding.app_name,
             logo_url: s.value.logo_url || branding.logo_url,
             theme: s.value.theme || branding.theme,
+            app_url: s.value.app_url || process.env.NEXT_PUBLIC_APP_URL || '',
           };
         }
         if (s.key === 'mikrotik' && s.value) {

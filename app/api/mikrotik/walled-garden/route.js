@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWalledGardenEntries, addWalledGardenEntry, removeWalledGardenEntry } from '@/lib/mikrotik';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
+import { logChange } from '@/lib/changeHistory';
 
 /**
  * GET — List all walled garden entries from the MikroTik router
@@ -34,12 +35,23 @@ export async function POST(request) {
       return NextResponse.json({ error: 'dst_host is required' }, { status: 400 });
     }
 
+    const cleanHost = dst_host.trim();
     const fullComment = category ? `[${category}] ${comment}`.trim() : comment;
 
     const result = await addWalledGardenEntry({
-      dstHost: dst_host.trim(),
+      dstHost: cleanHost,
       action: 'allow',
       comment: fullComment,
+    });
+
+    // Log to change history
+    await logChange({
+      category: 'walled-garden',
+      action: 'add',
+      summary: `Added "${cleanHost}" to walled garden bypass`,
+      beforeState: {},
+      afterState: { dst_host: cleanHost, comment: fullComment, category },
+      metadata: { dst_host: cleanHost, comment: fullComment, category },
     });
 
     return NextResponse.json({ success: true, entry: result });
@@ -54,19 +66,31 @@ export async function POST(request) {
 
 /**
  * DELETE — Remove a walled garden entry by MikroTik ID
- * Body: { id }
+ * Body: { id, source?, dst_host?, comment? }
  */
 export async function DELETE(request) {
   if (!(await validateAdminAuth(request))) return unauthorizedResponse();
 
   try {
-    const { id, source } = await request.json();
+    const { id, source, dst_host, comment } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Entry ID is required' }, { status: 400 });
     }
 
     await removeWalledGardenEntry(id, source);
+
+    // Log to change history
+    const targetLabel = dst_host || id;
+    await logChange({
+      category: 'walled-garden',
+      action: 'remove',
+      summary: `Removed "${targetLabel}" from walled garden bypass`,
+      beforeState: { id, dst_host, comment, source },
+      afterState: {},
+      metadata: { id, dst_host, comment, source },
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Walled garden remove error:', error.message);
@@ -76,3 +100,4 @@ export async function DELETE(request) {
     );
   }
 }
+

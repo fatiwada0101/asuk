@@ -56,24 +56,35 @@ Copy the example configuration file:
 cp .env.example .env.local
 ```
 
-Fill in your Supabase credentials:
+Fill in your Supabase credentials and optional public web app URL:
 ```env
 # Supabase Configuration (Required)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# MikroTik Defaults (Optional, can be configured dynamically in Super Admin)
+# Public Web App URL (Optional - defaults to browser origin or Super Admin branding settings)
+NEXT_PUBLIC_APP_URL=https://wifi.yourisp.com
+
+# MikroTik Defaults (Optional, can also be configured dynamically in Super Admin)
 MIKROTIK_IP=192.168.88.1
 MIKROTIK_USER=admin
 MIKROTIK_PASS=
 
-# Flutterwave (Optional, can be configured dynamically in Super Admin)
+# Flutterwave (Optional, can also be configured dynamically in Super Admin)
 FLUTTERWAVE_PUBLIC_KEY=
 FLUTTERWAVE_SECRET_KEY=
+FLUTTERWAVE_ENCRYPTION_KEY=
 ```
 
-### 4. Run the Development Server
+### 4. Database Setup (Supabase)
+Run the complete SQL schema script located in [`scripts/schema.sql`](file:///c:/Users/DEEPMIND/Desktop/Asuk%20Tech/wifi-app/scripts/schema.sql) inside your Supabase Dashboard **SQL Editor**. This creates:
+- `app_settings` (dynamic router, branding, payment, login portal configs)
+- `change_history` (audit trail with 1-click rollback)
+- `pending_router_tasks` (asynchronous router task queuing)
+- `fallback_vouchers` (offline continuity vouchers)
+
+### 5. Run the Development Server
 ```bash
 npm run dev
 ```

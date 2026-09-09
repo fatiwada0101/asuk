@@ -130,11 +130,13 @@ const DEFAULT_BRANDING = {
   app_name: 'Asuk Tech',
   logo_url: '',
   theme: 'violet',
+  app_url: '',
 };
 
 const BrandingContext = createContext({
   appName: DEFAULT_BRANDING.app_name,
   logoUrl: DEFAULT_BRANDING.logo_url,
+  appUrl: DEFAULT_BRANDING.app_url,
   theme: THEME_PALETTES.violet,
   themeId: 'violet',
   palettes: THEME_PALETTES,
@@ -178,6 +180,7 @@ export function BrandingProvider({ children }) {
               app_name: data.branding.app_name || prev.app_name,
               logo_url: data.branding.logo_url || prev.logo_url,
               theme: data.branding.theme || prev.theme,
+              app_url: data.branding.app_url || prev.app_url || '',
             }));
           }
         }
@@ -214,6 +217,7 @@ export function BrandingProvider({ children }) {
       value={{
         appName: branding.app_name,
         logoUrl: branding.logo_url,
+        appUrl: branding.app_url,
         theme: currentTheme,
         themeId: branding.theme,
         palettes: THEME_PALETTES,

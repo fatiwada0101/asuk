@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { buildMikroTikRequest, getMikroTikConfig, generateHotspotLoginHtml } from '@/lib/mikrotik';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
+import { logChange } from '@/lib/changeHistory';
 
 /** Helper: make a MikroTik REST API call */
-async function mikrotikCall(endpoint, method = 'GET', body = null) {
+async function mikrotikCall(endpoint, method = 'GET', body = null, timeoutMs = 15000) {
   const { url, headers } = await buildMikroTikRequest(endpoint);
-  const opts = { method, headers: { ...headers }, signal: AbortSignal.timeout(8000) };
+  const opts = { method, headers: { ...headers }, signal: AbortSignal.timeout(timeoutMs) };
   if (body) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
@@ -379,22 +380,53 @@ export async function POST(request) {
       const existingWG = await mikrotikCall('/rest/ip/hotspot/walled-garden') || [];
       const existingWGHosts = existingWG.map(w => w['dst-host'] || '');
 
-      // Determine the app domain from the hotspot URL or config
-      const appDomains = [];
+      // Determine the web application domain dynamically from branding settings or env
+      const dynamicAppDomains = [];
+      let configuredAppHost = '';
+      let configuredAppDomain = '';
 
-      // Add the Vercel app domain (where login page is hosted)
+      try {
+        const { data: bData } = await supabaseAdmin
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'branding')
+          .single();
+        const rawAppUrl = bData?.value?.app_url || process.env.NEXT_PUBLIC_APP_URL || '';
+        if (rawAppUrl) {
+          const parsed = new URL(rawAppUrl.startsWith('http') ? rawAppUrl : `https://${rawAppUrl}`);
+          configuredAppHost = parsed.hostname;
+          const parts = configuredAppHost.split('.');
+          configuredAppDomain = parts.length > 2 ? parts.slice(-2).join('.') : configuredAppHost;
+        }
+      } catch {}
+
+      if (configuredAppHost) {
+        dynamicAppDomains.push(configuredAppHost);
+        if (configuredAppDomain && configuredAppDomain !== configuredAppHost) {
+          dynamicAppDomains.push(configuredAppDomain);
+        }
+        if (configuredAppDomain) {
+          dynamicAppDomains.push(`*.${configuredAppDomain}`);
+        }
+      }
+
+      // Add Supabase Project domain dynamically
+      let dynamicSupabaseHost = '';
+      try {
+        if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          dynamicSupabaseHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+        }
+      } catch {}
+
+      // Add the router's DNS hotspot name if configured
       if (hotspotUrl && !hotspotUrl.includes('192.168') && !hotspotUrl.includes('10.')) {
-        appDomains.push(`*${hotspotUrl}*`);
+        dynamicAppDomains.push(`*${hotspotUrl}*`);
       }
 
       // Comprehensive domains for captive portal, banks, payment switches & 3DS ACS links
       const walledGardenDomains = [
-        ...appDomains,
-        // Core System & Portal
-        'www.asuk.tech',
-        'asuk.tech',
-        '*.asuk.tech',
-        'vtvzxbyxgotcathjxivo.supabase.co',
+        ...dynamicAppDomains,
+        ...(dynamicSupabaseHost ? [dynamicSupabaseHost] : []),
         '*.supabase.co',
         '*.supabase.in',
         '*.vercel.app',
@@ -563,12 +595,35 @@ export async function POST(request) {
         } catch {}
       }
 
-      // Self-contained, responsive, dark-mode Hotspot login page
-      // Runs directly on router port 80 (HTTP) — zero SSL errors, works offline!
+      // Load saved portal template config (if user has set one via Login Design tab)
+      let savedPortalConfig = {};
+      let savedBrandingConfig = {};
+      try {
+        const { data: stData } = await supabaseAdmin
+          .from('app_settings')
+          .select('key, value')
+          .in('key', ['portal_template', 'branding']);
+        (stData || []).forEach(r => {
+          if (r.key === 'portal_template') savedPortalConfig = r.value || {};
+          if (r.key === 'branding') savedBrandingConfig = r.value || {};
+        });
+      } catch {}
+
+      const defaultBuyUrl = savedPortalConfig.buyUrl
+        || (savedBrandingConfig.app_url ? `${savedBrandingConfig.app_url.replace(/\/+$/, '')}/packages` : '')
+        || (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/packages` : '')
+        || 'https://www.asuk.tech/packages';
+
       const portalHtml = generateHotspotLoginHtml({
+        templateId: savedPortalConfig.templateId || 'midnight-glass',
         wifiSsid: wifiSsid || 'Asuk Tech Wi-Fi',
-        buyUrl: 'https://www.asuk.tech/packages',
+        buyUrl: defaultBuyUrl,
+        businessName: savedPortalConfig.businessName || savedBrandingConfig.app_name || wifiSsid || 'Asuk Tech Wi-Fi',
+        logoUrl: savedPortalConfig.logoUrl || savedBrandingConfig.logo_url || '',
+        contactFooter: savedPortalConfig.contactFooter || '',
+        primaryColor: savedPortalConfig.primaryColor || '',
       });
+
 
       let portalInstalled = false;
 
@@ -652,6 +707,18 @@ export async function POST(request) {
     }
 
     const allOk = results.every(r => r.status === 'ok' || r.status === 'skip' || r.status === 'info');
+
+    // Record in change history
+    try {
+      await logChange({
+        category: 'mikrotik-config',
+        action: 'auto-setup',
+        summary: `Automated router provisioning: ${allOk ? 'All steps succeeded' : 'Completed with warnings'}`,
+        beforeState: {},
+        afterState: { all_ok: allOk },
+        metadata: { resultsCount: results.length, all_ok: allOk },
+      });
+    } catch {}
 
     return NextResponse.json({
       success: true,

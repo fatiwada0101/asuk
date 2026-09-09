@@ -28,8 +28,9 @@ export async function POST(request) {
     // to run the SQL manually or use the Supabase Dashboard.
     // However, we can try using the rpc endpoint if we have a function.
 
-    // Let's try creating via the Management API
-    const projectRef = 'vtvzxbyxgotcathjxivo';
+    // Dynamically derive Supabase project ref from environment
+    const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const projectRef = rawSupabaseUrl.replace(/^https?:\/\//i, '').split('.')[0] || 'your-project';
     const sql = `
       CREATE TABLE IF NOT EXISTS pending_router_tasks (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

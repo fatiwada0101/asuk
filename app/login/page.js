@@ -26,7 +26,7 @@ function CaptiveLoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [wifiSsid, setWifiSsid] = useState('');
-  const [hotspotUrl, setHotspotUrl] = useState('asuktech.net');
+  const [hotspotUrl, setHotspotUrl] = useState('');
   const [autoConnecting, setAutoConnecting] = useState(false);
 
   // MikroTik passes these query params on captive portal redirect
@@ -51,8 +51,11 @@ function CaptiveLoginPage() {
   // Determine target MikroTik login action URL
   const getMikrotikLoginTarget = () => {
     if (linkLoginOnly) return linkLoginOnly;
-    const cleanHotspot = (hotspotUrl || 'asuktech.net').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-    return `http://${cleanHotspot}/login`;
+    if (hotspotUrl) {
+      const cleanHotspot = hotspotUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      return `http://${cleanHotspot}/login`;
+    }
+    return 'http://10.0.0.1/login';
   };
 
   // Submit credentials directly to MikroTik Hotspot
@@ -144,15 +147,13 @@ function CaptiveLoginPage() {
     if (dst) p.set('dst', dst);
     const qs = p.toString();
 
-    // In local dev, stay on local domain; otherwise direct to production domain www.asuk.tech
+    // Dynamically stay on current domain (works locally, in production, and for any cloned deployment)
     if (typeof window !== 'undefined') {
-      const host = window.location.hostname;
-      if (host === 'localhost' || host === '127.0.0.1') {
-        return qs ? `/packages?${qs}` : '/packages';
-      }
+      return qs ? `${window.location.origin}/packages?${qs}` : `${window.location.origin}/packages`;
     }
-    return qs ? `https://www.asuk.tech/packages?${qs}` : 'https://www.asuk.tech/packages';
+    return qs ? `/packages?${qs}` : '/packages';
   })();
+
 
   return (
     <div style={{

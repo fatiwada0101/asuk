@@ -27,9 +27,15 @@ import {
   GlobeIcon,
   PrinterIcon,
   DownloadIcon,
+  LayoutIcon,
+  SmartphoneIcon,
+  MonitorIcon,
+  DatabaseIcon,
 } from '../components/Icons';
 import MikroTikSetupGuide from '../components/MikroTikSetupGuide';
 import MikroTikDiagnosticsAndLogs from '../components/MikroTikDiagnosticsAndLogs';
+import WindowsProgressBar from '../components/WindowsProgressBar';
+import DatabaseSchemaTab from '../components/DatabaseSchemaTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: TrendingUpIcon },
@@ -42,10 +48,14 @@ const TABS = [
   { id: 'plans', label: 'Internet Plans', icon: WalletIcon },
   { id: 'network', label: 'Network Health', icon: ActivityIcon },
   { id: 'branding', label: 'Branding & Theme', icon: EditPencilIcon },
+  { id: 'login-design', label: 'Login Design', icon: LayoutIcon },
   { id: 'walled-garden', label: 'Walled Garden', icon: GlobeIcon },
   { id: 'mikrotik', label: 'MikroTik Config', icon: CpuIcon },
   { id: 'payments', label: 'Payment Gateway', icon: ServerIcon },
+  { id: 'history', label: 'Change History', icon: ClockIcon },
+  { id: 'database', label: 'Database & Schema', icon: DatabaseIcon },
 ];
+
 
 // ═══════════════════════════════════════════════════════════
 // FINANCE TAB COMPONENT
@@ -1618,8 +1628,9 @@ export default function SuperAdminPage() {
 
   // Branding
   const [brandingForm, setBrandingForm] = useState({
-    app_name: 'Asuk Tech', logo_url: '', theme: 'violet',
+    app_name: 'Asuk Tech', logo_url: '', theme: 'violet', app_url: '',
   });
+
   const [webhookCopied, setWebhookCopied] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -1629,6 +1640,42 @@ export default function SuperAdminPage() {
   const [autoSetupResult, setAutoSetupResult] = useState(null);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
   const [pushingLogin, setPushingLogin] = useState(false);
+
+  // Windows Progress Bar States
+  const [autoSetupProgress, setAutoSetupProgress] = useState({
+    active: false,
+    percent: 0,
+    title: '',
+    subtitle: '',
+    status: 'normal', // 'normal' | 'warning' | 'error' | 'success'
+    itemCount: '',
+    elapsedText: '',
+    canRetry: false,
+  });
+  const autoSetupAbortRef = useRef(null);
+
+  const [wgBulkProgress, setWgBulkProgress] = useState({
+    active: false,
+    percent: 0,
+    title: '',
+    subtitle: '',
+    status: 'normal',
+    itemCount: '',
+    elapsedText: '',
+    canRetry: false,
+    failedList: [],
+  });
+
+  const [portalPushProgress, setPortalPushProgress] = useState({
+    active: false,
+    percent: 0,
+    title: '',
+    subtitle: '',
+    status: 'normal',
+    itemCount: '',
+    elapsedText: '',
+    canRetry: false,
+  });
 
   // Polling Mode
   const [pollingConfig, setPollingConfig] = useState({
@@ -1689,12 +1736,30 @@ export default function SuperAdminPage() {
   });
   const [cardExporting, setCardExporting] = useState(false);
 
+  // Login Design (Portal Templates)
+  const [portalTemplate, setPortalTemplate] = useState('midnight-glass');
+  const [portalConfig, setPortalConfig] = useState({
+    logoUrl: '', businessName: '', contactFooter: '', primaryColor: '', buyUrl: '',
+  });
+
+  const [portalPushing, setPortalPushing] = useState(false);
+  const [portalPreviewMode, setPortalPreviewMode] = useState('phone');
+  const [portalPreviewKey, setPortalPreviewKey] = useState(0);
+  const [portalConfigLoaded, setPortalConfigLoaded] = useState(false);
+
   // Walled Garden
   const [walledGardenEntries, setWalledGardenEntries] = useState([]);
   const [wgLoading, setWgLoading] = useState(false);
   const [wgSyncing, setWgSyncing] = useState(false);
   const [wgCustomUrl, setWgCustomUrl] = useState('');
   const [wgCustomComment, setWgCustomComment] = useState('');
+
+  // Change History & Rollback
+  const [changeHistory, setChangeHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [historyRollbacking, setHistoryRollbacking] = useState(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   // Router Users
   const [routerUsers, setRouterUsers] = useState([]);
@@ -1889,10 +1954,32 @@ export default function SuperAdminPage() {
     }
   }, [token, adminHeaders]);
 
+  const fetchChangeHistory = useCallback(async (cat) => {
+    const category = cat !== undefined ? cat : historyFilter;
+    setHistoryLoading(true);
+    try {
+      const url = category && category !== 'all'
+        ? `/api/super-admin/change-history?category=${encodeURIComponent(category)}&limit=100`
+        : '/api/super-admin/change-history?limit=100';
+      const res = await fetch(url, { headers: adminHeaders() });
+      const data = await res.json();
+      if (data.success) {
+        setChangeHistory(data.entries || []);
+      }
+    } catch (err) {
+      console.error('Fetch history error:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [historyFilter, adminHeaders]);
+
   const handleTestMikrotik = useCallback(async (silent = false) => {
     setTestLoading(true);
     try {
-      const res = await fetch('/api/mikrotik/test-connection', { headers: adminHeaders() });
+      const res = await fetch('/api/mikrotik/test-connection', {
+        headers: adminHeaders(),
+        signal: AbortSignal.timeout(10000),
+      });
       const data = await res.json();
       setTestResult(data);
       if (!silent) {
@@ -1900,8 +1987,10 @@ export default function SuperAdminPage() {
         else showToast(data.error ? `⚠️ ${data.error}` : '⚠️ Connection failed');
       }
     } catch (err) {
-      setTestResult({ connected: false, error: err.message });
-      if (!silent) showToast(`Network error: ${err.message}`);
+      const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout');
+      const msg = isTimeout ? 'Connection timed out after 10s. Check router IP and port.' : err.message;
+      setTestResult({ connected: false, error: msg });
+      if (!silent) showToast(`Network error: ${msg}`);
     } finally { setTestLoading(false); }
   }, [adminHeaders]);
 
@@ -1921,7 +2010,36 @@ export default function SuperAdminPage() {
     else if (activeTab === 'network') fetchNetworkHealth();
     else if (activeTab === 'walled-garden') fetchWalledGarden();
     else if (activeTab === 'vouchers') fetchBatchHistory();
-  }, [activeTab, authed, token, fetchRouterUsers, fetchRouterProfiles, fetchNetworkHealth, fetchWalledGarden, fetchBatchHistory]);
+    else if (activeTab === 'history') fetchChangeHistory();
+    else if (activeTab === 'login-design' && !portalConfigLoaded) {
+      // Load saved portal template config on first visit
+      fetch('/api/super-admin/settings', { headers: adminHeaders() })
+        .then(r => r.json())
+        .then(data => {
+          const cfg = data?.portal_template;
+          if (cfg && typeof cfg === 'object') {
+            if (cfg.templateId) setPortalTemplate(cfg.templateId);
+            setPortalConfig({
+              logoUrl: cfg.logoUrl || '',
+              businessName: cfg.businessName || '',
+              contactFooter: cfg.contactFooter || '',
+              primaryColor: cfg.primaryColor || '',
+              buyUrl: cfg.buyUrl || '',
+            });
+          }
+          setPortalConfigLoaded(true);
+        })
+        .catch(() => setPortalConfigLoaded(true));
+    }
+  }, [activeTab, authed, token, fetchRouterUsers, fetchRouterProfiles, fetchNetworkHealth, fetchWalledGarden, fetchBatchHistory, fetchChangeHistory, portalConfigLoaded, adminHeaders]);
+
+  // Auto-refresh login design preview when template or config changes (debounced)
+  useEffect(() => {
+    if (activeTab !== 'login-design') return;
+    const t = setTimeout(() => setPortalPreviewKey(k => k + 1), 600);
+    return () => clearTimeout(t);
+  }, [portalTemplate, portalConfig.logoUrl, portalConfig.businessName, portalConfig.contactFooter, portalConfig.primaryColor, portalConfig.buyUrl, activeTab]);
+
 
   // ── Action Handlers ────────────────────────────────────────
 
@@ -2324,13 +2442,42 @@ export default function SuperAdminPage() {
 
 
   // ═══ Walled Garden Handlers & Domain Definitions ═══
+  const currentAppHost = (() => {
+    try {
+      if (brandingForm.app_url) {
+        return new URL(brandingForm.app_url.startsWith('http') ? brandingForm.app_url : `https://${brandingForm.app_url}`).hostname;
+      }
+      if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return window.location.hostname;
+      }
+      if (process.env.NEXT_PUBLIC_APP_URL) {
+        return new URL(process.env.NEXT_PUBLIC_APP_URL.startsWith('http') ? process.env.NEXT_PUBLIC_APP_URL : `https://${process.env.NEXT_PUBLIC_APP_URL}`).hostname;
+      }
+    } catch {}
+    return 'www.asuk.tech';
+  })();
+
+  const currentApexDomain = (() => {
+    const parts = currentAppHost.split('.');
+    return parts.length > 2 ? parts.slice(-2).join('.') : currentAppHost;
+  })();
+
+  const currentSupabaseHost = (() => {
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (url) return new URL(url).hostname;
+    } catch {}
+    return '';
+  })();
+
   const CORE_SYSTEM_DOMAINS = [
-    { domain: 'www.asuk.tech', label: 'Asuk Tech Portal (Default)' },
-    { domain: 'asuk.tech', label: 'Asuk Tech Apex' },
-    { domain: '*.asuk.tech', label: 'Asuk Tech Wildcard' },
-    { domain: 'vtvzxbyxgotcathjxivo.supabase.co', label: 'Supabase Cloud API (Default)' },
+    ...(currentAppHost ? [{ domain: currentAppHost, label: `${brandingForm.app_name || 'App'} Web Portal (${currentAppHost})` }] : []),
+    ...(currentApexDomain && currentApexDomain !== currentAppHost ? [{ domain: currentApexDomain, label: `${brandingForm.app_name || 'App'} Apex (${currentApexDomain})` }] : []),
+    ...(currentApexDomain ? [{ domain: `*.${currentApexDomain}`, label: `${brandingForm.app_name || 'App'} Wildcard (*.${currentApexDomain})` }] : []),
+    ...(currentSupabaseHost ? [{ domain: currentSupabaseHost, label: `Supabase Cloud API (${currentSupabaseHost})` }] : []),
     { domain: '*.supabase.co', label: 'Supabase Global APIs' },
   ];
+
 
   const PAYMENT_GATEWAYS = [
     { domain: '*.flutterwave.com', label: 'Flutterwave Core' },
@@ -2426,23 +2573,7 @@ export default function SuperAdminPage() {
       ...SECURITY_3DS_DOMAINS.map(d => ({ ...d, category: 'security' })),
       ...NIGERIAN_BANKS.map(d => ({ ...d, category: 'bank' })),
     ];
-    setWgSyncing(true);
-    let added = 0;
-    const existingDomains = walledGardenEntries.map(e => (e['dst-host'] || '').toLowerCase());
-    for (const entry of all) {
-      if (existingDomains.includes(entry.domain.toLowerCase())) continue;
-      try {
-        await fetch('/api/mikrotik/walled-garden', {
-          method: 'POST',
-          headers: adminHeaders(),
-          body: JSON.stringify({ dst_host: entry.domain, category: entry.category, comment: entry.label }),
-        });
-        added++;
-      } catch {}
-    }
-    showToast(`⚡ Activated ${added} new bypass domains (All Banks, Gateways & 3DS)!`);
-    await fetchWalledGarden();
-    setWgSyncing(false);
+    await handleBulkAddWalledGarden(all, 'All Services');
   };
 
 
@@ -2472,7 +2603,7 @@ export default function SuperAdminPage() {
       const res = await fetch('/api/mikrotik/walled-garden', {
         method: 'DELETE',
         headers: adminHeaders(),
-        body: JSON.stringify({ id: entryId, source: source || undefined }),
+        body: JSON.stringify({ id: entryId, source: source || undefined, dst_host: domain }),
       });
       if (res.ok) {
         showToast(`Removed ${domain}`);
@@ -2485,22 +2616,127 @@ export default function SuperAdminPage() {
     finally { setWgSyncing(false); }
   };
 
+  const handleRollback = async (entry) => {
+    if (!confirm(`Roll back this change?\n\n"${entry.summary}"\n\nThis will restore previous settings and re-apply them to the router if applicable.`)) {
+      return;
+    }
+    setHistoryRollbacking(entry.id);
+    try {
+      const res = await fetch('/api/super-admin/change-history', {
+        method: 'PATCH',
+        headers: adminHeaders(),
+        body: JSON.stringify({ id: entry.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ ${data.message || 'Rollback applied successfully!'}`);
+        await fetchChangeHistory();
+        if (entry.category === 'walled-garden') fetchWalledGarden();
+        if (entry.category === 'mikrotik-config' || entry.category === 'branding' || entry.category === 'payment-gateway') {
+          fetchCoreData();
+        }
+        if (entry.category === 'login-design') {
+          setPortalConfigLoaded(false);
+        }
+      } else {
+        showToast(`❌ Rollback failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      showToast(`❌ Error: ${err.message}`);
+    } finally {
+      setHistoryRollbacking(null);
+    }
+  };
+
+
   const handleBulkAddWalledGarden = async (entries, category) => {
+    if (wgSyncing) return;
     setWgSyncing(true);
+
+    const total = entries.length;
     let added = 0;
+    let skipped = 0;
+    let failed = 0;
+    const failedList = [];
+    const startTime = Date.now();
+
     const existingDomains = walledGardenEntries.map(e => (e['dst-host'] || '').toLowerCase());
-    for (const entry of entries) {
-      if (existingDomains.includes(entry.domain.toLowerCase())) continue;
+
+    setWgBulkProgress({
+      active: true,
+      percent: 1,
+      title: `Whitelisting ${category} Domains`,
+      subtitle: `Initializing sync for ${total} domains...`,
+      status: 'normal',
+      itemCount: `0 of ${total}`,
+      elapsedText: '0s elapsed',
+      canRetry: false,
+      failedList: [],
+    });
+
+    for (let i = 0; i < total; i++) {
+      const entry = entries[i];
+      const percent = Math.max(1, Math.min(100, Math.round(((i + 1) / total) * 100)));
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+
+      if (existingDomains.includes(entry.domain.toLowerCase())) {
+        skipped++;
+        setWgBulkProgress(prev => ({
+          ...prev,
+          percent,
+          subtitle: `Skipping ${entry.domain} (already whitelisted)`,
+          itemCount: `${i + 1} of ${total} (${added} added, ${skipped} active)`,
+          elapsedText: `${sec}s elapsed`,
+        }));
+        continue;
+      }
+
+      setWgBulkProgress(prev => ({
+        ...prev,
+        percent,
+        subtitle: `Whitelisting ${entry.domain} (${entry.label || category})...`,
+        itemCount: `${i + 1} of ${total} (${added} added, ${failed} failed)`,
+        elapsedText: `${sec}s elapsed`,
+      }));
+
       try {
-        await fetch('/api/mikrotik/walled-garden', {
+        const res = await fetch('/api/mikrotik/walled-garden', {
           method: 'POST',
           headers: adminHeaders(),
-          body: JSON.stringify({ dst_host: entry.domain, category, comment: entry.label }),
+          body: JSON.stringify({ dst_host: entry.domain, category: entry.category || category, comment: entry.label }),
+          signal: AbortSignal.timeout(10000),
         });
-        added++;
-      } catch {}
+        if (res.ok) {
+          added++;
+          existingDomains.push(entry.domain.toLowerCase());
+        } else {
+          failed++;
+          failedList.push(entry);
+        }
+      } catch {
+        failed++;
+        failedList.push(entry);
+      }
     }
-    showToast(`✅ Added ${added} ${category} entries`);
+
+    const finalSec = Math.floor((Date.now() - startTime) / 1000);
+    const hasFailures = failed > 0;
+
+    setWgBulkProgress({
+      active: true,
+      percent: 100,
+      title: hasFailures ? `Walled Garden Sync Finished with ${failed} Failure(s)` : `Walled Garden Sync Completed!`,
+      subtitle: hasFailures
+        ? `Added ${added} new domains (${skipped} were already active, ${failed} timed out or failed)`
+        : `Successfully whitelisted all ${added} domains (${skipped} were already active).`,
+      status: failed === total ? 'error' : hasFailures ? 'warning' : 'success',
+      itemCount: `${total} of ${total} (${added} added, ${skipped} active, ${failed} failed)`,
+      elapsedText: `${finalSec}s total`,
+      canRetry: hasFailures,
+      failedList,
+    });
+
+    showToast(hasFailures ? `⚠️ Processed with ${failed} failed domain(s)` : `✅ Added ${added} ${category} entries`);
     await fetchWalledGarden();
     setWgSyncing(false);
   };
@@ -2510,6 +2746,290 @@ export default function SuperAdminPage() {
     await handleAddWalledGarden(wgCustomUrl.trim(), 'custom', wgCustomComment.trim() || wgCustomUrl.trim());
     setWgCustomUrl('');
     setWgCustomComment('');
+  };
+
+  // ── Auto Setup Runner with Windows Progress Bar & Network Timeout ──
+  const handleRunAutoSetup = async () => {
+    if (autoSetupLoading) return;
+    setAutoSetupLoading(true);
+    setAutoSetupResult(null);
+
+    const startTime = Date.now();
+    let timerInterval = null;
+
+    const updateElapsed = () => `${Math.floor((Date.now() - startTime) / 1000)}s elapsed`;
+
+    setAutoSetupProgress({
+      active: true,
+      percent: 5,
+      title: 'Auto Setup Router',
+      subtitle: 'Step 1/6: Validating and saving MikroTik connection settings...',
+      status: 'normal',
+      itemCount: 'Step 1 of 6',
+      elapsedText: '0s elapsed',
+      canRetry: false,
+    });
+
+    timerInterval = setInterval(() => {
+      setAutoSetupProgress(prev => {
+        if (!prev.active || prev.status === 'success' || prev.status === 'error') return prev;
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        const isSlow = sec > 9;
+        return {
+          ...prev,
+          elapsedText: `${sec}s elapsed`,
+          status: isSlow && prev.status !== 'error' ? 'warning' : prev.status,
+          subtitle: isSlow && prev.status !== 'error' && !prev.subtitle.includes('(Slow network')
+            ? `${prev.subtitle} (Slow network detected — waiting for router...)`
+            : prev.subtitle,
+        };
+      });
+    }, 1000);
+
+    const abortController = new AbortController();
+    autoSetupAbortRef.current = abortController;
+
+    try {
+      // Step 1: Save settings
+      await saveMikrotik();
+
+      // Step 2: Save hotspot settings
+      setAutoSetupProgress(prev => ({
+        ...prev,
+        percent: 18,
+        subtitle: 'Step 2/6: Persisting hotspot sharing and timer configurations...',
+        itemCount: 'Step 2 of 6',
+        elapsedText: updateElapsed(),
+      }));
+
+      await fetch('/api/super-admin/settings', {
+        method: 'POST',
+        headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'hotspot_settings', value: hotspotSettings }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      // Step 3: Test connection
+      setAutoSetupProgress(prev => ({
+        ...prev,
+        percent: 32,
+        subtitle: 'Step 3/6: Testing REST API connection to router...',
+        itemCount: 'Step 3 of 6',
+        elapsedText: updateElapsed(),
+      }));
+
+      const testRes = await fetch('/api/mikrotik/test-connection', {
+        headers: adminHeaders(),
+        signal: AbortSignal.timeout(12000),
+      });
+      const testData = await testRes.json();
+      setTestResult(testData);
+
+      if (!testData.connected) {
+        throw new Error(testData.error || 'Cannot reach router — check IP, port, and credentials');
+      }
+
+      // Step 4: Auto-configure everything on the router
+      setAutoSetupProgress(prev => ({
+        ...prev,
+        percent: 48,
+        subtitle: 'Step 4/6: Configuring DNS, Hotspot Server, and Bandwidth Profiles...',
+        itemCount: 'Step 4 of 6',
+        elapsedText: updateElapsed(),
+      }));
+
+      const stageTimer1 = setTimeout(() => {
+        setAutoSetupProgress(prev => prev.active && prev.status !== 'error' ? {
+          ...prev,
+          percent: 70,
+          subtitle: 'Step 5/6: Whitelisting Core, Banking & Payment Walled Garden domains...',
+          itemCount: 'Step 5 of 6',
+          elapsedText: updateElapsed(),
+        } : prev);
+      }, 3500);
+
+      const stageTimer2 = setTimeout(() => {
+        setAutoSetupProgress(prev => prev.active && prev.status !== 'error' ? {
+          ...prev,
+          percent: 88,
+          subtitle: 'Step 6/6: Generating and uploading custom captive portal login template...',
+          itemCount: 'Step 6 of 6',
+          elapsedText: updateElapsed(),
+        } : prev);
+      }, 7500);
+
+      const res = await fetch('/api/mikrotik/auto-setup', {
+        method: 'POST',
+        headers: adminHeaders(),
+        signal: abortController.signal,
+      });
+
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+
+      const data = await res.json();
+      setAutoSetupResult(data);
+
+      if (!res.ok || data.error) {
+        throw new Error(data.details || data.error || 'Auto-setup encountered an error on the router');
+      }
+
+      setAutoSetupProgress({
+        active: true,
+        percent: 100,
+        title: 'Auto Setup Completed!',
+        subtitle: data.summary || 'All router services configured successfully with zero errors.',
+        status: 'success',
+        itemCount: `${data.results?.length || 7} Steps Verified`,
+        elapsedText: updateElapsed(),
+        canRetry: false,
+      });
+
+      showToast(data.summary || '✅ Router configured successfully!');
+      fetchCoreData();
+    } catch (e) {
+      const isTimeout = e.name === 'TimeoutError' || e.message?.includes('timeout') || e.message?.includes('abort');
+      const errorMsg = isTimeout
+        ? 'Connection timed out. Router might be slow, rebooting, or unreachable on the network.'
+        : e.message;
+
+      setAutoSetupProgress(prev => ({
+        ...prev,
+        active: true,
+        status: 'error',
+        subtitle: `❌ ${errorMsg}`,
+        elapsedText: updateElapsed(),
+        canRetry: true,
+      }));
+
+      showToast(`❌ Setup Error: ${errorMsg}`);
+    } finally {
+      if (timerInterval) clearInterval(timerInterval);
+      setAutoSetupLoading(false);
+      autoSetupAbortRef.current = null;
+    }
+  };
+
+  const handleCancelAutoSetup = () => {
+    if (autoSetupAbortRef.current) {
+      autoSetupAbortRef.current.abort();
+      showToast('Auto-setup cancelled');
+    }
+  };
+
+  // ── Push Login Page with Windows Progress Bar ──
+  const handlePushLoginPageWithProgress = async () => {
+    if (portalPushing) return;
+    setPortalPushing(true);
+
+    const startTime = Date.now();
+    const updateElapsed = () => `${Math.floor((Date.now() - startTime) / 1000)}s elapsed`;
+
+    setPortalPushProgress({
+      active: true,
+      percent: 15,
+      title: 'Deploying Captive Portal to Router',
+      subtitle: `Preparing "${portalTemplate}" markup, CSS tokens & assets...`,
+      status: 'normal',
+      itemCount: 'Step 1 of 4',
+      elapsedText: '0s elapsed',
+      canRetry: false,
+    });
+
+    const targetBuyUrl = portalConfig.buyUrl
+      || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : '')
+      || 'https://www.asuk.tech/packages';
+
+    const t1 = setTimeout(() => {
+      setPortalPushProgress(prev => prev.active && prev.status !== 'error' ? {
+        ...prev,
+        percent: 45,
+        subtitle: 'Connecting to MikroTik REST storage API...',
+        itemCount: 'Step 2 of 4',
+        elapsedText: updateElapsed(),
+      } : prev);
+    }, 1200);
+
+    const t2 = setTimeout(() => {
+      setPortalPushProgress(prev => prev.active && prev.status !== 'error' ? {
+        ...prev,
+        percent: 75,
+        subtitle: 'Writing login.html directly to router hotspot storage directory...',
+        itemCount: 'Step 3 of 4',
+        elapsedText: updateElapsed(),
+      } : prev);
+    }, 2800);
+
+    const t3 = setTimeout(() => {
+      setPortalPushProgress(prev => prev.active && prev.status !== 'error' ? {
+        ...prev,
+        percent: 92,
+        subtitle: 'Verifying live captive portal deployment on router...',
+        itemCount: 'Step 4 of 4',
+        elapsedText: updateElapsed(),
+      } : prev);
+    }, 4500);
+
+    try {
+      const res = await fetch('/api/mikrotik/push-login-page', {
+        method: 'POST',
+        headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: portalTemplate,
+          wifi_ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+          business_name: portalConfig.businessName || mikrotikForm.wifi_ssid || brandingForm.app_name || '',
+          logo_url: portalConfig.logoUrl || brandingForm.logo_url || '',
+          contact_footer: portalConfig.contactFooter || '',
+          primary_color: portalConfig.primaryColor || '',
+          buy_url: targetBuyUrl,
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
+
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPortalPushProgress({
+          active: true,
+          percent: 100,
+          title: 'Login Page Deployed Live!',
+          subtitle: `"${portalTemplate}" template uploaded and verified on router hotspot storage.`,
+          status: 'success',
+          itemCount: 'Deployed Live',
+          elapsedText: updateElapsed(),
+          canRetry: false,
+        });
+        showToast(`✅ "${portalTemplate}" template pushed to router!`);
+      } else {
+        throw new Error(data.error || 'Push failed');
+      }
+    } catch (e) {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+
+      const isTimeout = e.name === 'TimeoutError' || e.message?.includes('timeout');
+      const errDetail = isTimeout
+        ? 'Upload timed out after 25s. The router may be slow or on a high-latency link.'
+        : e.message;
+
+      setPortalPushProgress(prev => ({
+        ...prev,
+        active: true,
+        percent: prev.percent || 45,
+        status: 'error',
+        subtitle: `❌ ${errDetail}`,
+        elapsedText: updateElapsed(),
+        canRetry: true,
+      }));
+
+      showToast(`❌ Push Error: ${errDetail}`);
+    } finally {
+      setPortalPushing(false);
+    }
   };
 
   // Router User Management
@@ -4101,6 +4621,23 @@ export default function SuperAdminPage() {
         {/* ═══ TAB: WALLED GARDEN ═══ */}
         {activeTab === 'walled-garden' && (
           <div className="sa-tab-body">
+            {/* Windows-style Progress Bar for Walled Garden Bulk Operations */}
+            {wgBulkProgress.active && (
+              <div style={{ marginBottom: 20 }}>
+                <WindowsProgressBar
+                  percent={wgBulkProgress.percent}
+                  title={wgBulkProgress.title}
+                  subtitle={wgBulkProgress.subtitle}
+                  status={wgBulkProgress.status}
+                  itemCount={wgBulkProgress.itemCount}
+                  elapsedText={wgBulkProgress.elapsedText}
+                  canRetry={wgBulkProgress.canRetry}
+                  onRetry={wgBulkProgress.failedList?.length > 0 ? () => handleBulkAddWalledGarden(wgBulkProgress.failedList, 'Failed Domains') : null}
+                  onDismiss={() => setWgBulkProgress(prev => ({ ...prev, active: false }))}
+                />
+              </div>
+            )}
+
             {/* Master Activation Banner */}
             <div className="sa-glass-card" style={{
               background: 'linear-gradient(135deg, rgba(114, 87, 255, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%)',
@@ -4148,7 +4685,7 @@ export default function SuperAdminPage() {
               <div className="sa-card-header">
                 <div>
                   <h3 className="sa-card-title">🌐 Core App & Database Bypass (Defaults)</h3>
-                  <p className="sa-card-sub">Pre-authenticated access for the Asuk Tech web portal and Supabase cloud database</p>
+                  <p className="sa-card-sub">Pre-authenticated access for the {brandingForm.app_name || 'App'} web portal and cloud database</p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="sa-btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => handleBulkAddWalledGarden(CORE_SYSTEM_DOMAINS, 'core')} disabled={wgSyncing}>
@@ -4465,6 +5002,24 @@ export default function SuperAdminPage() {
                 </div>
               </div>
 
+              {/* Windows-style Progress Bar for Auto Setup */}
+              {autoSetupProgress.active && (
+                <div style={{ marginBottom: 16 }}>
+                  <WindowsProgressBar
+                    percent={autoSetupProgress.percent}
+                    title={autoSetupProgress.title}
+                    subtitle={autoSetupProgress.subtitle}
+                    status={autoSetupProgress.status}
+                    itemCount={autoSetupProgress.itemCount}
+                    elapsedText={autoSetupProgress.elapsedText}
+                    canRetry={autoSetupProgress.canRetry}
+                    onRetry={handleRunAutoSetup}
+                    onCancel={handleCancelAutoSetup}
+                    onDismiss={() => setAutoSetupProgress(prev => ({ ...prev, active: false }))}
+                  />
+                </div>
+              )}
+
               {/* THE 1-CLICK BUTTON */}
               <button
                 className="sa-btn-primary"
@@ -4475,50 +5030,9 @@ export default function SuperAdminPage() {
                   width: '100%', borderRadius: 14, letterSpacing: '0.3px',
                   boxShadow: '0 4px 20px rgba(34,197,94,0.3)',
                 }}
-                onClick={async () => {
-                  setAutoSetupLoading(true);
-                  setAutoSetupResult(null);
-                  try {
-                    // Step 1: Save all settings
-                    await saveMikrotik();
-
-                    // Step 2: Save hotspot settings
-                    await fetch('/api/super-admin/settings', {
-                      method: 'POST',
-                      headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ key: 'hotspot_settings', value: hotspotSettings }),
-                    });
-
-                    showToast('Settings saved! Testing connection...');
-
-                    // Step 3: Test connection
-                    const testRes = await fetch('/api/mikrotik/test-connection', { headers: adminHeaders() });
-                    const testData = await testRes.json();
-                    setTestResult(testData);
-
-                    if (!testData.connected) {
-                      showToast('Cannot reach router — check IP, port, and credentials');
-                      setAutoSetupLoading(false);
-                      return;
-                    }
-
-                    showToast('Connected! Configuring WiFi, hotspot, profiles...');
-
-                    // Step 4: Auto-configure everything on the router
-                    const res = await fetch('/api/mikrotik/auto-setup', {
-                      method: 'POST',
-                      headers: adminHeaders(),
-                    });
-                    const data = await res.json();
-                    setAutoSetupResult(data);
-                    showToast(data.summary || 'Router configured!');
-                  } catch (e) {
-                    showToast('Error: ' + e.message);
-                  }
-                  setAutoSetupLoading(false);
-                }}
+                onClick={handleRunAutoSetup}
               >
-                {autoSetupLoading ? 'Configuring Router...' : 'Auto Setup Router'}
+                {autoSetupLoading ? '⚡ Configuring Router...' : '⚡ Auto Setup Router (1-Click)'}
               </button>
 
               {/* Setup Results Checklist */}
@@ -4580,12 +5094,29 @@ export default function SuperAdminPage() {
                   color: '#C4B5FD',
                   wordBreak: 'break-all',
                 }}>
-                  https://www.asuk.tech/packages?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&link-orig=$(link-orig-esc)
+                  {portalConfig.buyUrl || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : 'https://www.asuk.tech/packages')}?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&link-orig=$(link-orig-esc)
                 </code>
                 <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#888' }}>
-                  When connected to Wi-Fi without a voucher, clicking this button takes users directly to <strong>www.asuk.tech/packages</strong> to purchase a plan, after which they are automatically authenticated.
+                  When connected to Wi-Fi without a voucher, clicking this button takes users directly to <strong>{portalConfig.buyUrl || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : 'www.asuk.tech/packages')}</strong> to purchase a plan, after which they are automatically authenticated.
                 </p>
               </div>
+
+              {/* Windows-style Progress Bar for Portal Push */}
+              {portalPushProgress.active && (
+                <div style={{ marginBottom: 16 }}>
+                  <WindowsProgressBar
+                    percent={portalPushProgress.percent}
+                    title={portalPushProgress.title}
+                    subtitle={portalPushProgress.subtitle}
+                    status={portalPushProgress.status}
+                    itemCount={portalPushProgress.itemCount}
+                    elapsedText={portalPushProgress.elapsedText}
+                    canRetry={portalPushProgress.canRetry}
+                    onRetry={handlePushLoginPageWithProgress}
+                    onDismiss={() => setPortalPushProgress(prev => ({ ...prev, active: false }))}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
@@ -4598,33 +5129,11 @@ export default function SuperAdminPage() {
                     padding: '10px 20px',
                     background: 'linear-gradient(135deg, #7257FF 0%, #5438DC 100%)',
                   }}
-                  onClick={async () => {
-                    setPushingLogin(true);
-                    try {
-                      const res = await fetch('/api/mikrotik/push-login-page', {
-                        method: 'POST',
-                        headers: adminHeaders(),
-                        body: JSON.stringify({
-                          wifi_ssid: mikrotikForm.wifi_ssid,
-                          buy_url: 'https://www.asuk.tech/packages',
-                        }),
-                      });
-                      const data = await res.json();
-                      if (res.ok) {
-                        showToast('✅ Login page with www.asuk.tech pushed to router storage!');
-                      } else {
-                        showToast('❌ ' + (data.details || data.error || 'Failed to push login page'));
-                      }
-                    } catch (e) {
-                      showToast('Error: ' + e.message);
-                    } finally {
-                      setPushingLogin(false);
-                    }
-                  }}
-                  disabled={pushingLogin}
+                  onClick={handlePushLoginPageWithProgress}
+                  disabled={portalPushing}
                 >
                   <span>⚡</span>
-                  {pushingLogin ? 'Pushing to Router...' : 'Push Login Page to Router (Instant)'}
+                  {portalPushing ? 'Pushing to Router...' : 'Push Login Page to Router (Instant)'}
                 </button>
 
                 <a
@@ -4750,7 +5259,19 @@ export default function SuperAdminPage() {
                   <label>Logo URL (optional)</label>
                   <input value={brandingForm.logo_url} onChange={e => setBrandingForm({ ...brandingForm, logo_url: e.target.value })} placeholder="https://example.com/logo.png" />
                 </div>
+                <div className="sa-field-box" style={{ gridColumn: '1 / -1' }}>
+                  <label>Web App / Portal URL</label>
+                  <input
+                    value={brandingForm.app_url || ''}
+                    onChange={e => setBrandingForm({ ...brandingForm, app_url: e.target.value })}
+                    placeholder="https://www.asuk.tech"
+                  />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>
+                    Public URL of this web application (e.g. https://mybrand.com). Used by the captive portal for voucher purchasing, redirects, and automated walled-garden bypass.
+                  </span>
+                </div>
               </div>
+
 
               <div className="sa-plan-form-footer">
                 <button className="sa-btn-primary" onClick={async () => {
@@ -4792,6 +5313,314 @@ export default function SuperAdminPage() {
             </div>
           </div>
         )}
+
+        {/* ═══ TAB: LOGIN DESIGN (PORTAL TEMPLATES) ═══ */}
+        {activeTab === 'login-design' && (
+          <div className="sa-tab-body">
+
+            {/* ── Template Gallery ── */}
+            <div className="sa-glass-card">
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">{'🎨'} Captive Portal Templates</h3>
+                  <p className="sa-card-sub">Choose a beautiful login page design for your MikroTik hotspot</p>
+                </div>
+                <span className="sa-badge sa-badge-purple">5 Templates</span>
+              </div>
+
+              <div className="sa-template-gallery">
+                {[
+                  { id: 'midnight-glass', name: 'Midnight Glass', emoji: '🌙', desc: 'Dark glassmorphism with frosted card & purple glow', css: 'linear-gradient(135deg, #0f0a1e 0%, #1a1035 50%, #2d1b69 100%)' },
+                  { id: 'sunrise-gradient', name: 'Sunrise Gradient', emoji: '🌅', desc: 'Warm orange-to-pink gradient with clean white card', css: 'linear-gradient(135deg, #f97316 0%, #ec4899 50%, #8b5cf6 100%)' },
+                  { id: 'ocean-breeze', name: 'Ocean Breeze', emoji: '🌊', desc: 'Cool teal-blue waves with aqua gradient accents', css: 'linear-gradient(135deg, #0d9488 0%, #0ea5e9 50%, #6366f1 100%)' },
+                  { id: 'neon-pulse', name: 'Neon Pulse', emoji: '⚡', desc: 'Electric cyberpunk with neon green borders', css: 'linear-gradient(135deg, #0a0a0a 0%, #0d1117 50%, #1a1a2e 100%)' },
+                  { id: 'clean-minimal', name: 'Clean Minimal', emoji: '✨', desc: 'Ultra-clean white card, Apple-inspired simplicity', css: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)' },
+                ].map(tpl => (
+                  <div
+                    key={tpl.id}
+                    className={`sa-template-card ${portalTemplate === tpl.id ? 'active' : ''}`}
+                    onClick={() => { setPortalTemplate(tpl.id); setPortalPreviewKey(k => k + 1); }}
+                  >
+                    <div className="sa-template-thumb" style={{ background: tpl.css }}>
+                      <span className="sa-template-emoji">{tpl.emoji}</span>
+                      {portalTemplate === tpl.id && <span className="sa-template-check">✓</span>}
+                    </div>
+                    <div className="sa-template-info">
+                      <strong>{tpl.name}</strong>
+                      <span>{tpl.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Customization Panel ── */}
+            <div className="sa-glass-card" style={{ marginTop: 24 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">{'⚙️'} Customize Template</h3>
+                  <p className="sa-card-sub">Personalize the login page with your brand</p>
+                </div>
+              </div>
+
+              <div className="sa-form-grid-2">
+                <div className="sa-field-box">
+                  <label>Business Name</label>
+                  <input value={portalConfig.businessName} onChange={e => setPortalConfig({ ...portalConfig, businessName: e.target.value })}
+                    placeholder={mikrotikForm.wifi_ssid || 'Your Business Name'} />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Heading text on the login card (defaults to Wi-Fi SSID)</span>
+                </div>
+                <div className="sa-field-box">
+                  <label>Logo URL</label>
+                  <input value={portalConfig.logoUrl} onChange={e => setPortalConfig({ ...portalConfig, logoUrl: e.target.value })}
+                    placeholder="https://example.com/logo.png" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Direct link to your brand logo image</span>
+                </div>
+                <div className="sa-field-box">
+                  <label>Contact / Footer Text</label>
+                  <input value={portalConfig.contactFooter} onChange={e => setPortalConfig({ ...portalConfig, contactFooter: e.target.value })}
+                    placeholder="Call: 0801-234-5678 | WhatsApp: 0901-234-5678" />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Phone, email, or WhatsApp shown at the bottom</span>
+                </div>
+                <div className="sa-field-box">
+                  <label>Accent Color</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="color" value={portalConfig.primaryColor || '#7c3aed'}
+                      onChange={e => setPortalConfig({ ...portalConfig, primaryColor: e.target.value })}
+                      style={{ width: 44, height: 36, padding: 2, borderRadius: 8, border: '2px solid rgba(255,255,255,0.1)', background: 'transparent', cursor: 'pointer' }} />
+                    <input value={portalConfig.primaryColor} onChange={e => setPortalConfig({ ...portalConfig, primaryColor: e.target.value })}
+                      placeholder="#7c3aed (auto)" style={{ flex: 1 }} />
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>Override the template's default accent color</span>
+                </div>
+                <div className="sa-field-box" style={{ gridColumn: '1 / -1' }}>
+                  <label>Buy Voucher Redirect URL (Self-Service)</label>
+                  <input
+                    value={portalConfig.buyUrl}
+                    onChange={e => setPortalConfig({ ...portalConfig, buyUrl: e.target.value })}
+                    placeholder={brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : 'https://www.asuk.tech/packages'}
+                  />
+                  <span style={{ fontSize: '11px', color: '#71717A', marginTop: 4 }}>
+                    The destination URL for the &quot;Buy a Data Plan&quot; button on the hotspot portal. Defaults to your web app&apos;s /packages page.
+                  </span>
+                </div>
+              </div>
+
+              <div className="sa-plan-form-footer" style={{ marginTop: 16 }}>
+                <button
+                  className="sa-btn-primary"
+                  onClick={async () => {
+                    try {
+                      const fullConfig = {
+                        templateId: portalTemplate,
+                        businessName: portalConfig.businessName,
+                        logoUrl: portalConfig.logoUrl,
+                        contactFooter: portalConfig.contactFooter,
+                        primaryColor: portalConfig.primaryColor,
+                        buyUrl: portalConfig.buyUrl,
+                      };
+                      const res = await fetch('/api/super-admin/settings', {
+                        method: 'POST',
+                        headers: adminHeaders(),
+                        body: JSON.stringify({ key: 'portal_template', value: fullConfig }),
+                      });
+                      if (res.ok) {
+                        showToast('✅ Login design settings saved!');
+                        fetchChangeHistory();
+                      } else {
+                        showToast('❌ Failed to save login design');
+                      }
+                    } catch {
+                      showToast('Network error');
+                    }
+                  }}
+                >
+                  💾 Save Design Settings
+                </button>
+              </div>
+            </div>
+
+
+            {/* ── Live Preview ── */}
+            <div className="sa-glass-card" style={{ marginTop: 24 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">{'👁️'} Live Preview</h3>
+                  <p className="sa-card-sub">See how your login page looks to customers</p>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className={`sa-preview-toggle ${portalPreviewMode === 'phone' ? 'active' : ''}`}
+                    onClick={() => setPortalPreviewMode('phone')}
+                    title="Phone preview"
+                  >
+                    <SmartphoneIcon size={16} /> Phone
+                  </button>
+                  <button
+                    className={`sa-preview-toggle ${portalPreviewMode === 'desktop' ? 'active' : ''}`}
+                    onClick={() => setPortalPreviewMode('desktop')}
+                    title="Desktop preview"
+                  >
+                    <MonitorIcon size={16} /> Desktop
+                  </button>
+                  <button
+                    className="sa-preview-toggle"
+                    onClick={() => setPortalPreviewKey(k => k + 1)}
+                    title="Refresh preview"
+                  >
+                    <RefreshIcon size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={`sa-portal-preview-frame ${portalPreviewMode}`}>
+                <div className="sa-portal-preview-notch" />
+                <iframe
+                  key={portalPreviewKey}
+                  className="sa-portal-preview-iframe"
+                  srcDoc={(() => {
+                    try {
+                      // Build a static preview by replacing MikroTik variables with demo values
+                      const templates = {
+                        'midnight-glass': 'Midnight Glass',
+                        'sunrise-gradient': 'Sunrise Gradient',
+                        'ocean-breeze': 'Ocean Breeze',
+                        'neon-pulse': 'Neon Pulse',
+                        'clean-minimal': 'Clean Minimal',
+                      };
+                      const name = portalConfig.businessName || mikrotikForm.wifi_ssid || brandingForm.app_name || 'Asuk Tech Wi-Fi';
+                      const targetBuyUrl = portalConfig.buyUrl
+                        || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : '')
+                        || 'https://www.asuk.tech/packages';
+
+                      // We build the preview HTML via the API using a GET request
+                      const params = new URLSearchParams({
+                        template_id: portalTemplate,
+                        wifi_ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+                        business_name: name,
+                        logo_url: portalConfig.logoUrl || brandingForm.logo_url || '',
+                        contact_footer: portalConfig.contactFooter || '',
+                        primary_color: portalConfig.primaryColor || '',
+                        buy_url: targetBuyUrl,
+                      });
+                      return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;overflow:hidden}</style></head><body><script>
+fetch('/api/mikrotik/push-login-page?${params.toString()}')
+  .then(r=>r.text())
+  .then(html=>{
+    html=html.replace(/\$\(link-login-only\)/g,'#')
+      .replace(/\$\(link-orig\)/g,'https://google.com')
+      .replace(/\$\(link-orig-esc\)/g,'https%3A%2F%2Fgoogle.com')
+      .replace(/\$\(link-login-only-esc\)/g,'%23')
+      .replace(/\$\(mac\)/g,'AA:BB:CC:DD:EE:FF')
+      .replace(/\$\(ip\)/g,'10.0.0.42')
+      .replace(/\$\(username\)/g,'')
+      .replace(/\$\(if error\)[\\s\\S]*?\$\(endif\)/g,'');
+    document.open();document.write(html);document.close();
+  });
+<\/script></body></html>`;
+                    } catch { return '<p>Preview unavailable</p>'; }
+                  })()}
+                  sandbox="allow-scripts allow-same-origin"
+                  title="Login Page Preview"
+                />
+              </div>
+            </div>
+
+            {/* ── Action Buttons ── */}
+            <div className="sa-glass-card" style={{ marginTop: 24 }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">{'🚀'} Deploy to Router</h3>
+                  <p className="sa-card-sub">Push the selected template to your MikroTik hotspot</p>
+                </div>
+              </div>
+
+              {/* Windows-style Progress Bar for Template Push */}
+              {portalPushProgress.active && (
+                <div style={{ marginBottom: 16 }}>
+                  <WindowsProgressBar
+                    percent={portalPushProgress.percent}
+                    title={portalPushProgress.title}
+                    subtitle={portalPushProgress.subtitle}
+                    status={portalPushProgress.status}
+                    itemCount={portalPushProgress.itemCount}
+                    elapsedText={portalPushProgress.elapsedText}
+                    canRetry={portalPushProgress.canRetry}
+                    onRetry={handlePushLoginPageWithProgress}
+                    onDismiss={() => setPortalPushProgress(prev => ({ ...prev, active: false }))}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  className="sa-btn-primary"
+                  disabled={portalPushing}
+                  style={{
+                    flex: '1 1 200px', background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    padding: '14px 24px', fontSize: '14px', fontWeight: 800,
+                    borderRadius: 14, boxShadow: '0 4px 20px rgba(34,197,94,0.3)',
+                  }}
+                  onClick={handlePushLoginPageWithProgress}
+                >
+                  {portalPushing ? 'Pushing to Router...' : '🚀 Push to Router'}
+                </button>
+
+                <button
+                  className="sa-btn-outline"
+                  style={{ flex: '1 1 160px', padding: '14px 20px', fontSize: '13px', fontWeight: 700, borderRadius: 14 }}
+                  onClick={() => {
+                    const targetBuyUrl = portalConfig.buyUrl
+                      || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : '')
+                      || 'https://www.asuk.tech/packages';
+                    const params = new URLSearchParams({
+                      download: 'true',
+                      template_id: portalTemplate,
+                      wifi_ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+                      business_name: portalConfig.businessName || mikrotikForm.wifi_ssid || brandingForm.app_name || '',
+                      logo_url: portalConfig.logoUrl || brandingForm.logo_url || '',
+                      contact_footer: portalConfig.contactFooter || '',
+                      primary_color: portalConfig.primaryColor || '',
+                      buy_url: targetBuyUrl,
+                    });
+                    window.open(`/api/mikrotik/push-login-page?${params.toString()}`, '_blank');
+                  }}
+                >
+                  📥 Download login.html
+                </button>
+
+                <button
+                  className="sa-btn-outline"
+                  style={{ flex: '1 1 160px', padding: '14px 20px', fontSize: '13px', fontWeight: 700, borderRadius: 14 }}
+                  onClick={() => {
+                    const targetBuyUrl = portalConfig.buyUrl
+                      || (brandingForm.app_url ? `${brandingForm.app_url.replace(/\/+$/, '')}/packages` : '')
+                      || 'https://www.asuk.tech/packages';
+                    const params = new URLSearchParams({
+                      template_id: portalTemplate,
+                      wifi_ssid: mikrotikForm.wifi_ssid || 'Asuk Tech Wi-Fi',
+                      business_name: portalConfig.businessName || mikrotikForm.wifi_ssid || brandingForm.app_name || '',
+                      logo_url: portalConfig.logoUrl || brandingForm.logo_url || '',
+                      contact_footer: portalConfig.contactFooter || '',
+                      primary_color: portalConfig.primaryColor || '',
+                      buy_url: targetBuyUrl,
+                    });
+                    window.open(`/api/mikrotik/push-login-page?${params.toString()}`, '_blank');
+                  }}
+                >
+                  👁️ Full-Screen Preview
+                </button>
+              </div>
+
+              <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(34,197,94,0.06)', borderRadius: 12, border: '1px solid rgba(34,197,94,0.15)' }}>
+                <div style={{ fontSize: '12px', color: '#888', lineHeight: 1.6 }}>
+                  <strong style={{ color: '#22c55e' }}>How it works:</strong> Clicking &quot;Push to Router&quot; uploads the generated login.html directly to your MikroTik router&apos;s hotspot directory. The captive portal will immediately use the new design for all connecting users.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* ═══ TAB: PAYMENT GATEWAY ═══ */}
         {activeTab === 'payments' && (
@@ -4845,7 +5674,225 @@ export default function SuperAdminPage() {
             </div>
           </div>
         )}
+
+        {/* ═══ TAB: CHANGE HISTORY & ROLLBACK ═══ */}
+        {activeTab === 'history' && (
+          <div className="sa-tab-body">
+            <div className="sa-glass-card">
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">System Change History & Rollback</h3>
+                  <p className="sa-card-sub">
+                    Track all router configurations, walled garden rules, login templates, branding, and payment changes. One-click rollback restores previous states instantly.
+                  </p>
+                </div>
+                <button
+                  className="sa-btn-secondary"
+                  onClick={() => fetchChangeHistory()}
+                  disabled={historyLoading}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RefreshIcon style={{ width: 14, height: 14, animation: historyLoading ? 'spin 1s linear infinite' : 'none' }} />
+                  {historyLoading ? 'Refreshing...' : 'Refresh Logs'}
+                </button>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="sa-history-filter-bar">
+                {[
+                  { id: 'all', label: 'All Changes', icon: '📋' },
+                  { id: 'walled-garden', label: 'Walled Garden', icon: '🌐' },
+                  { id: 'login-design', label: 'Login Design', icon: '🎨' },
+                  { id: 'mikrotik-config', label: 'MikroTik Config', icon: '⚡' },
+                  { id: 'branding', label: 'Branding', icon: '✨' },
+                  { id: 'payment-gateway', label: 'Payment Gateway', icon: '💳' },
+                ].map(filter => (
+                  <button
+                    key={filter.id}
+                    className={`sa-history-pill ${historyFilter === filter.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setHistoryFilter(filter.id);
+                      fetchChangeHistory(filter.id);
+                    }}
+                  >
+                    <span>{filter.icon}</span>
+                    <span>{filter.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Timeline Container */}
+              {historyLoading && changeHistory.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#71717a' }}>
+                  <RefreshIcon style={{ width: 24, height: 24, animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
+                  <p>Loading audit history...</p>
+                </div>
+              ) : changeHistory.length === 0 ? (
+                <div className="sa-history-empty">
+                  <div className="sa-history-empty-icon">📜</div>
+                  <h4>No Change History Recorded Yet</h4>
+                  <p>
+                    Whenever you update MikroTik settings, add or remove walled garden domains, customize login templates, or update payment credentials, every action and previous state snapshot will be logged here with instant rollback capability.
+                  </p>
+                </div>
+              ) : (
+                <div className="sa-history-timeline">
+                  {changeHistory.map((entry) => {
+                    const isExpanded = expandedHistoryId === entry.id;
+                    const isRolledBack = entry.rolled_back;
+                    const isRollbackAction = entry.action === 'rollback';
+
+                    const hasConfigBefore = entry.before_state && typeof entry.before_state === 'object' && Object.keys(entry.before_state).length > 0;
+                    const hasWgTarget = entry.category === 'walled-garden' && (
+                      (entry.action === 'add' && !!(entry.metadata?.dst_host || entry.after_state?.dst_host || entry.before_state?.dst_host)) ||
+                      (entry.action === 'remove' && !!(entry.metadata?.dst_host || entry.before_state?.dst_host)) ||
+                      (entry.action === 'bulk-add' && Array.isArray(entry.metadata?.domains) && entry.metadata.domains.length > 0)
+                    );
+                    const canRollback = !isRolledBack && !isRollbackAction && (
+                      ['mikrotik-config', 'branding', 'payment-gateway', 'login-design'].includes(entry.category)
+                        ? hasConfigBefore
+                        : hasWgTarget
+                    );
+
+                    // Safe Date formatting
+                    const entryDate = entry.created_at ? new Date(entry.created_at) : null;
+                    const formattedDate = (entryDate && !isNaN(entryDate.getTime()))
+                      ? entryDate.toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Recently';
+
+                    // Category badge class & label
+                    const catClass = `sa-history-cat-${entry.category || 'mikrotik-config'}`;
+                    const catLabel = {
+                      'walled-garden': 'Walled Garden',
+                      'login-design': 'Login Design',
+                      'mikrotik-config': 'MikroTik Config',
+                      'branding': 'Branding',
+                      'payment-gateway': 'Payment Gateway',
+                    }[entry.category] || entry.category;
+
+                    // Action badge class & label
+                    const actClass = `sa-history-act-${entry.action || 'update'}`;
+                    const actLabel = {
+                      add: '➕ Add',
+                      remove: '🗑️ Remove',
+                      update: '✏️ Update',
+                      push: '🚀 Push',
+                      rollback: '🔄 Rollback',
+                      'auto-setup': '⚡ Auto Setup',
+                      'bulk-add': '📦 Bulk Add',
+                    }[entry.action] || entry.action;
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`sa-history-entry ${isRolledBack ? 'is-rolled-back' : ''}`}
+                      >
+                        <div className="sa-history-entry-top">
+                          <div className="sa-history-meta-left">
+                            <span className={`sa-history-cat-badge ${catClass}`}>
+                              {catLabel}
+                            </span>
+                            <span className={`sa-history-act-badge ${actClass}`}>
+                              {actLabel}
+                            </span>
+                            {isRolledBack && (
+                              <span className="sa-badge sa-badge-warn" style={{ fontSize: 10, padding: '2px 8px' }}>
+                                Rolled Back
+                              </span>
+                            )}
+                            {isRollbackAction && (
+                              <span className="sa-badge sa-badge-info" style={{ fontSize: 10, padding: '2px 8px' }}>
+                                Restoration
+                              </span>
+                            )}
+                          </div>
+                          <span className="sa-history-time">
+                            <ClockIcon style={{ width: 12, height: 12 }} />
+                            {formattedDate}
+                          </span>
+                        </div>
+
+                        <div className="sa-history-summary">
+                          {entry.summary}
+                        </div>
+
+                        <div className="sa-history-actions-row">
+                          <button
+                            className="sa-history-btn-diff"
+                            onClick={() => setExpandedHistoryId(isExpanded ? null : entry.id)}
+                          >
+                            <span>{isExpanded ? '▲ Hide State & Diff' : '▼ View State & Diff'}</span>
+                          </button>
+
+                          {canRollback && (
+                            <button
+                              className="sa-history-btn-rollback"
+                              onClick={() => handleRollback(entry)}
+                              disabled={historyRollbacking === entry.id}
+                            >
+                              <span>{historyRollbacking === entry.id ? '⏳ Rolling back...' : '↩️ Rollback to Previous State'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Expandable Before / After State Diff Box */}
+                        {isExpanded && (
+                          <div className="sa-history-diff-box">
+                            <div className="sa-history-diff-grid">
+                              <div>
+                                <div className="sa-history-diff-col-title" style={{ color: '#f87171' }}>
+                                  ◀ State Before (Restored on Rollback)
+                                </div>
+                                <pre className="sa-history-diff-pre">
+                                  {entry.before_state && typeof entry.before_state === 'object' && Object.keys(entry.before_state).length > 0
+                                    ? JSON.stringify(entry.before_state, null, 2)
+                                    : '// No previous state (initial creation or addition)'}
+                                </pre>
+                              </div>
+                              <div>
+                                <div className="sa-history-diff-col-title" style={{ color: '#4ade80' }}>
+                                  ▶ State After Change
+                                </div>
+                                <pre className="sa-history-diff-pre">
+                                  {entry.after_state && typeof entry.after_state === 'object' && Object.keys(entry.after_state).length > 0
+                                    ? JSON.stringify(entry.after_state, null, 2)
+                                    : JSON.stringify(entry.metadata || {}, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                            {entry.metadata && typeof entry.metadata === 'object' && Object.keys(entry.metadata).length > 0 && (
+                              <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>
+                                <span style={{ fontSize: 10, textTransform: 'uppercase', color: '#a1a1aa', fontWeight: 700 }}>
+                                  Metadata Context:
+                                </span>
+                                <pre className="sa-history-diff-pre" style={{ marginTop: 4, maxHeight: 120 }}>
+                                  {JSON.stringify(entry.metadata, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TAB: DATABASE & SCHEMA ═══ */}
+        {activeTab === 'database' && (
+          <DatabaseSchemaTab adminHeaders={adminHeaders} showToast={showToast} />
+        )}
       </main>
+
 
       <div className={`toast ${toast ? 'show' : ''}`}>{toast}</div>
     </div>

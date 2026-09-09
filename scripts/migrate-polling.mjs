@@ -19,7 +19,8 @@ async function migrate() {
 
   console.log('Table does not exist. Error:', error.message);
   console.log('\n⚠️ You need to create it manually in Supabase SQL Editor.');
-  console.log('Opening: https://supabase.com/dashboard/project/vtvzxbyxgotcathjxivo/sql/new\n');
+  const projectRef = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^https?:\/\//i, '').split('.')[0] || 'your-project';
+  console.log(`Opening: https://supabase.com/dashboard/project/${projectRef}/sql/new\n`);
   console.log('Paste this SQL and click Run:\n');
   console.log(`CREATE TABLE IF NOT EXISTS pending_router_tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
