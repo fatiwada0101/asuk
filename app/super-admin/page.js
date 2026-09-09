@@ -1628,6 +1628,7 @@ export default function SuperAdminPage() {
   const [autoSetupLoading, setAutoSetupLoading] = useState(false);
   const [autoSetupResult, setAutoSetupResult] = useState(null);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  const [pushingLogin, setPushingLogin] = useState(false);
 
   // Polling Mode
   const [pollingConfig, setPollingConfig] = useState({
@@ -4543,6 +4544,124 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* ── Section 2.5: Router Captive Portal (login.html) ── */}
+            <div className="sa-glass-card" style={{ marginTop: 24, border: '1.5px solid rgba(114, 87, 255, 0.3)' }}>
+              <div className="sa-card-header">
+                <div>
+                  <h3 className="sa-card-title">📄 Hotspot Login Page & Voucher Buy Link</h3>
+                  <p className="sa-card-sub">Self-contained dark-mode captive portal served by MikroTik on port 80 (HTTP) with zero SSL warnings</p>
+                </div>
+                <span className="sa-badge sa-badge-purple">hotspot/login.html</span>
+              </div>
+
+              <div style={{
+                background: 'rgba(114, 87, 255, 0.06)',
+                border: '1px solid rgba(114, 87, 255, 0.2)',
+                borderRadius: 12,
+                padding: '14px 18px',
+                marginBottom: 16,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 18 }}>🛒</span>
+                    <strong style={{ fontSize: 13, color: '#FFFFFF' }}>Embedded Buy Voucher URL</strong>
+                  </div>
+                  <span className="sa-badge sa-badge-success" style={{ fontSize: 10 }}>Walled Garden Active</span>
+                </div>
+                <code style={{
+                  display: 'block',
+                  background: 'rgba(0,0,0,0.4)',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: '#C4B5FD',
+                  wordBreak: 'break-all',
+                }}>
+                  https://www.asuk.tech/packages?mac=$(mac)&ip=$(ip)&link-login-only=$(link-login-only-esc)&link-orig=$(link-orig-esc)
+                </code>
+                <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#888' }}>
+                  When connected to Wi-Fi without a voucher, clicking this button takes users directly to <strong>www.asuk.tech/packages</strong> to purchase a plan, after which they are automatically authenticated.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  className="sa-btn-primary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    padding: '10px 20px',
+                    background: 'linear-gradient(135deg, #7257FF 0%, #5438DC 100%)',
+                  }}
+                  onClick={async () => {
+                    setPushingLogin(true);
+                    try {
+                      const res = await fetch('/api/mikrotik/push-login-page', {
+                        method: 'POST',
+                        headers: adminHeaders(),
+                        body: JSON.stringify({
+                          wifi_ssid: mikrotikForm.wifi_ssid,
+                          buy_url: 'https://www.asuk.tech/packages',
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        showToast('✅ Login page with www.asuk.tech pushed to router storage!');
+                      } else {
+                        showToast('❌ ' + (data.details || data.error || 'Failed to push login page'));
+                      }
+                    } catch (e) {
+                      showToast('Error: ' + e.message);
+                    } finally {
+                      setPushingLogin(false);
+                    }
+                  }}
+                  disabled={pushingLogin}
+                >
+                  <span>⚡</span>
+                  {pushingLogin ? 'Pushing to Router...' : 'Push Login Page to Router (Instant)'}
+                </button>
+
+                <a
+                  href="/api/mikrotik/push-login-page?download=true"
+                  download="login.html"
+                  className="sa-btn-outline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 13,
+                    padding: '10px 18px',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>📥</span> Download login.html
+                </a>
+
+                <a
+                  href="/api/mikrotik/push-login-page"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sa-btn-outline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 13,
+                    padding: '10px 18px',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>👁️</span> Preview Template
+                </a>
+              </div>
             </div>
 
             {/* ── Section 3: Advanced (Collapsed) ── */}

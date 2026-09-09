@@ -143,7 +143,15 @@ function CaptiveLoginPage() {
     if (linkLoginOnly) p.set('link_login_only', linkLoginOnly);
     if (dst) p.set('dst', dst);
     const qs = p.toString();
-    return qs ? `/packages?${qs}` : '/packages';
+
+    // In local dev, stay on local domain; otherwise direct to production domain www.asuk.tech
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return qs ? `/packages?${qs}` : '/packages';
+      }
+    }
+    return qs ? `https://www.asuk.tech/packages?${qs}` : 'https://www.asuk.tech/packages';
   })();
 
   return (
