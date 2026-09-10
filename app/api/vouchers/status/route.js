@@ -163,10 +163,20 @@ export async function GET(request) {
       }
     }
 
+    const isUsed = !!(dbVoucher?.is_used || uptimeSeconds > 0 || isConnected);
+    if (isUsed && dbVoucher && !dbVoucher.is_used) {
+      supabaseAdmin
+        .from('vouchers')
+        .update({ is_used: true })
+        .eq('voucher_code', code)
+        .then(() => {})
+        .catch(() => {});
+    }
+
     const totalSeconds = limitUptimeSeconds || 86400;
     const percentRemaining = Math.max(0, Math.min(100, Math.round((secondsRemaining / totalSeconds) * 100)));
-    const isExpired = (dbVoucher?.status === 'expired') || (secondsRemaining <= 0 && dbVoucher?.is_used);
-    const isExpiringSoon = !isExpired && (secondsRemaining < 1800 || percentRemaining <= 25); // < 30m or < 25%
+    const isExpired = (dbVoucher?.status === 'expired') || (secondsRemaining <= 0 && isUsed);
+    const isExpiringSoon = !isExpired && isUsed && (secondsRemaining < 1800 || percentRemaining <= 25); // < 30m or < 25%
 
     // 5. VALIDATION: If voucher is expired, return explicit expired response
     if (isExpired && !isConnected) {
@@ -186,6 +196,7 @@ export async function GET(request) {
         code,
         plan_name: planName,
         is_expired: true,
+        is_used: isUsed,
         seconds_remaining: 0,
         formatted_time_left: '00:00:00',
       }, { status: 410 });
@@ -198,6 +209,7 @@ export async function GET(request) {
       plan_name: planName,
       price: dbVoucher?.price || null,
       is_connected: isConnected,
+      is_used: isUsed,
       is_expired: isExpired,
       is_expiring_soon: isExpiringSoon,
       seconds_remaining: secondsRemaining,

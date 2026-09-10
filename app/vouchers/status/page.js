@@ -126,6 +126,12 @@ function VoucherStatusContent() {
       tickerRef.current = null;
     }
 
+    // Do NOT tick down if the voucher has not been used yet (not connected, uptime is 0, not is_used)
+    const isUnused = !data?.is_connected && (!data?.is_used && (data?.uptime_seconds === 0 || !data?.uptime_seconds));
+    if (isUnused) {
+      return;
+    }
+
     tickerRef.current = setInterval(() => {
       setLocalSecondsRemaining((prev) => {
         if (prev === null || prev <= 0) {
@@ -182,13 +188,14 @@ function VoucherStatusContent() {
   const totalSecs = data?.limit_uptime_seconds || 86400;
   const currentRemaining = localSecondsRemaining !== null ? localSecondsRemaining : (data?.seconds_remaining || 0);
   const percentLeft = Math.max(0, Math.min(100, Math.round((currentRemaining / totalSecs) * 100)));
-  const isExpired = currentRemaining <= 0;
-  const isExpiringSoon = !isExpired && (currentRemaining < 1800 || percentLeft <= 25);
+  const isUnused = !data?.is_connected && (!data?.is_used && (data?.uptime_seconds === 0 || !data?.uptime_seconds));
+  const isExpired = !isUnused && currentRemaining <= 0;
+  const isExpiringSoon = !isExpired && !isUnused && (currentRemaining < 1800 || percentLeft <= 25);
 
   // Status color badge
   const statusColor = isExpired ? '#EF4444' : isExpiringSoon ? '#F59E0B' : '#10B981';
   const statusBg = isExpired ? 'rgba(239, 68, 68, 0.12)' : isExpiringSoon ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)';
-  const statusLabel = isExpired ? 'Pass Expired' : isExpiringSoon ? 'Expiring Soon' : data?.is_connected ? 'Connected & Active' : 'Pass Ready';
+  const statusLabel = isExpired ? 'Pass Expired' : isExpiringSoon ? 'Expiring Soon' : data?.is_connected ? 'Connected & Active' : (isUnused ? 'Ready to Connect' : 'Pass Ready');
 
   return (
     <div className="app-shell">
@@ -368,6 +375,8 @@ function VoucherStatusContent() {
           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
             {isExpired
               ? 'This voucher validity has ended.'
+              : isUnused
+              ? '⚡ Pass Ready • Session timer begins upon first Wi-Fi login'
               : isExpiringSoon
               ? '⚡ Less than 30 minutes left! Tap below to renew.'
               : `Total duration allowed: ${data?.limit_uptime_seconds ? formatCountdown(data.limit_uptime_seconds) : '24h'}`}

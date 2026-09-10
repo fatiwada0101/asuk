@@ -58,16 +58,26 @@ function CaptiveLoginPage() {
     return 'http://10.0.0.1/login';
   };
 
-  // Submit credentials directly to MikroTik Hotspot
+  // Submit credentials to MikroTik Hotspot via hidden iframe first,
+  // then fall back to full-page form POST if the iframe approach succeeds.
+  // This prevents 501/error responses from MikroTik from replacing the entire page.
   const submitToMikrotik = (voucherCode) => {
     const cleanCode = (voucherCode || '').trim();
     const targetUrl = getMikrotikLoginTarget();
     const returnDst = dst || (typeof window !== 'undefined' ? `${window.location.origin}/status?code=${encodeURIComponent(cleanCode)}` : '');
 
+    // Create a hidden iframe to absorb any error responses from MikroTik
+    const iframeName = `mikrotik_login_${Date.now()}`;
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
     // Form POST is standard for MikroTik Hotspot captive portal authentication
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}`;
+    form.target = iframeName;
     form.style.display = 'none';
 
     const fields = {
@@ -85,18 +95,77 @@ function CaptiveLoginPage() {
     }
 
     document.body.appendChild(form);
+
+    // Track whether the iframe loaded successfully
+    let iframeLoaded = false;
+
+    iframe.onload = () => {
+      iframeLoaded = true;
+      // MikroTik usually redirects on success — try navigating to the status page
+      // If we get here, the form POST was accepted (even if MikroTik returned an error page)
+      try {
+        // Try to check if the iframe contains an error page
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        const iframeText = iframeDoc?.body?.innerText || '';
+
+        if (iframeText.includes('501') || iframeText.includes('Not Implemented') || iframeText.includes('Error')) {
+          // MikroTik returned an error — show error on our page instead
+          setError('Router authentication failed. The voucher was validated but the router rejected the login. Please try again or contact support.');
+          setSuccess(false);
+          setLoading(false);
+          setAutoConnecting(false);
+          // Clean up
+          setTimeout(() => {
+            iframe.remove();
+            form.remove();
+          }, 500);
+          return;
+        }
+      } catch (e) {
+        // Cross-origin iframe — we can't read it, which is actually fine.
+        // MikroTik responded (no 501 crash), so the login likely succeeded.
+      }
+
+      // Login succeeded or MikroTik handled it — redirect to dst or status page
+      setTimeout(() => {
+        if (returnDst && returnDst.startsWith('http')) {
+          window.location.href = returnDst;
+        } else {
+          window.location.href = `/status?code=${encodeURIComponent(cleanCode)}`;
+        }
+      }, 800);
+    };
+
+    iframe.onerror = () => {
+      // Iframe failed to load entirely — router unreachable
+      setError('Could not reach the Wi-Fi router. Please make sure you are connected to the Wi-Fi network and try again.');
+      setSuccess(false);
+      setLoading(false);
+      setAutoConnecting(false);
+      iframe.remove();
+      form.remove();
+    };
+
     form.submit();
+
+    // Safety timeout: if iframe doesn't load within 10 seconds,
+    // fall back to direct form POST (full page navigation)
+    setTimeout(() => {
+      if (!iframeLoaded) {
+        // Remove iframe approach and do direct form POST as last resort
+        iframe.remove();
+        form.target = '';
+        form.submit();
+      }
+    }, 10000);
   };
 
-  // Auto-fill and auto-submit if credentials are in URL (from checkout auto-redirect)
+  // Auto-fill code from URL (from checkout redirect) — but do NOT auto-submit.
+  // The user must click "Connect" to start their session.
   useEffect(() => {
     if (username) {
       setCode(username);
-      setAutoConnecting(true);
-      const timer = setTimeout(() => {
-        performLogin(username);
-      }, 1200);
-      return () => clearTimeout(timer);
+      // Do NOT auto-connect — let user click the button when ready
     }
   }, [username]);
 
@@ -110,11 +179,36 @@ function CaptiveLoginPage() {
     try {
       // Validate voucher via dedicated validation endpoint
       const validateRes = await fetch(`/api/vouchers/validate?code=${encodeURIComponent(clean)}`);
-      const validateData = await validateRes.json();
+
+      // Handle non-JSON responses (e.g., HTML error pages from Vercel/Next.js)
+      let validateData;
+      const contentType = validateRes.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        validateData = await validateRes.json();
+      } else {
+        // Non-JSON response — likely an infrastructure error
+        const text = await validateRes.text();
+        console.error('Non-JSON response from validate API:', validateRes.status, text.substring(0, 200));
+        validateData = {
+          valid: false,
+          error: `Server error (${validateRes.status}). Please try again in a moment.`,
+        };
+      }
 
       if (!validateRes.ok || !validateData.valid) {
         // Show the specific error message from the API
-        setError(validateData.error || 'Invalid or expired voucher code. Please check and try again.');
+        let errorMessage = validateData.error || 'Invalid or expired voucher code. Please check and try again.';
+
+        // Add helpful context based on status codes
+        if (validateData.is_expired) {
+          errorMessage = validateData.error || 'This voucher has expired. Please purchase a new plan.';
+        } else if (validateRes.status === 404) {
+          errorMessage = validateData.error || 'This voucher code was not found. Please double-check your code.';
+        } else if (validateRes.status >= 500) {
+          errorMessage = 'Server error while validating your voucher. Please try again in a moment.';
+        }
+
+        setError(errorMessage);
         setLoading(false);
         setAutoConnecting(false);
         return;
@@ -126,7 +220,8 @@ function CaptiveLoginPage() {
       setTimeout(() => {
         submitToMikrotik(clean);
       }, 1000);
-    } catch {
+    } catch (err) {
+      console.error('Login error:', err);
       setError('Network error — please check your connection and try again.');
       setLoading(false);
       setAutoConnecting(false);

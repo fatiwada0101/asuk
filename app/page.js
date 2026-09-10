@@ -156,6 +156,7 @@ export default function HomePage() {
               plan: parsed.plan || 'Wi-Fi Pass',
               duration: parsed.duration || '24h',
               purchasedAt: parsed.purchasedAt || Date.now(),
+              isUsed: parsed.isUsed !== undefined ? parsed.isUsed : false,
             };
           }
         }
@@ -184,6 +185,8 @@ export default function HomePage() {
               plan: data.profile_name || 'Wi-Fi Pass',
               duration: data.profile_name || '24h',
               purchasedAt: dbPurchasedAt,
+              isUsed: !!data.is_used,
+              status: data.status,
             };
           }
         }
@@ -193,9 +196,17 @@ export default function HomePage() {
     }
 
     if (candidate) {
-      const durationMs = getDurationMs(candidate.duration, candidate.plan);
-      const expiresAt = candidate.purchasedAt + durationMs;
-      setActiveVoucher({ ...candidate, expiresAt });
+      // If the voucher is not used yet, the session timer has NOT started.
+      // MikroTik only begins counting session time when the user logs in for the first time.
+      if (!candidate.isUsed) {
+        setActiveVoucher({ ...candidate, isUnused: true, expiresAt: null });
+        setCountdownText('Ready to Connect');
+        setIsPassActive(true);
+      } else {
+        const durationMs = getDurationMs(candidate.duration, candidate.plan);
+        const expiresAt = candidate.purchasedAt + durationMs;
+        setActiveVoucher({ ...candidate, isUnused: false, expiresAt });
+      }
     } else {
       setActiveVoucher(null);
       setCountdownText('No Active Pass');
@@ -217,11 +228,18 @@ export default function HomePage() {
     };
   }, [syncActiveVoucher]);
 
-  // Live real-time countdown timer (ticks every 1 second)
+  // Live real-time countdown timer (ticks every 1 second only if voucher is actively used)
   useEffect(() => {
-    if (!activeVoucher?.expiresAt) {
+    if (!activeVoucher) {
       setCountdownText('No Active Pass');
       setIsPassActive(false);
+      return;
+    }
+
+    // Pass is ready to use, timer starts on first login
+    if (activeVoucher.isUnused || !activeVoucher.expiresAt) {
+      setCountdownText('Ready to Connect');
+      setIsPassActive(true);
       return;
     }
 
@@ -411,7 +429,7 @@ export default function HomePage() {
               title="Click to view live session timer & data used"
             >
               <span className={`exp-tag ${isPassActive ? 'active' : ''}`}>
-                {isPassActive ? '● Pass Expiry' : 'Voucher Expiry'}
+                {activeVoucher?.isUnused ? '● Pass Ready' : (isPassActive ? '● Pass Expiry' : 'Voucher Expiry')}
               </span>
               <div className={`exp-val ${isPassActive ? 'exp-val-active' : ''}`}>
                 {countdownText}

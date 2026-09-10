@@ -378,6 +378,7 @@ export async function POST(request) {
     // ═══ Step 6: Walled Garden — allow login page & payment domains before auth ═══
     try {
       const existingWG = await mikrotikCall('/rest/ip/hotspot/walled-garden') || [];
+      const existingWGIP = await mikrotikCall('/rest/ip/hotspot/walled-garden/ip') || [];
       const existingWGHosts = existingWG.map(w => w['dst-host'] || '');
 
       // Determine the web application domain dynamically from branding settings or env
@@ -515,14 +516,41 @@ export async function POST(request) {
         '*.optimusbank.com',
         '*.signaturebankng.com',
 
-        // Web Fonts & Captive Detection
+        // Web Fonts & CDN Assets (Note: captive probe domains like captive.apple.com MUST NOT be here)
         '*.googleapis.com',
         '*.gstatic.com',
         '*.cloudflare.com',
-        'connectivitycheck.gstatic.com',
-        'captive.apple.com',
-        '*.msftconnecttest.com',
       ];
+
+      // CRITICAL FOR IOS/ANDROID CAPTIVE POPUP DETECTION:
+      // Remove captive probe domains if they were previously added.
+      // If captive.apple.com or connectivitycheck.gstatic.com are in walled garden,
+      // iPhones and Android phones think they already have full internet and suppress the captive popup!
+      const captiveProbeDomains = ['captive.apple.com', 'connectivitycheck.gstatic.com', '*.msftconnecttest.com', 'msftconnecttest.com'];
+      for (const entry of existingWG) {
+        const host = (entry['dst-host'] || '').toLowerCase();
+        if (captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'))) {
+          try {
+            await mikrotikCall(`/rest/ip/hotspot/walled-garden/${entry['.id']}`, 'DELETE');
+          } catch {
+            try {
+              await mikrotikCall('/rest/ip/hotspot/walled-garden/remove', 'POST', { '.id': entry['.id'] });
+            } catch {}
+          }
+        }
+      }
+      for (const entry of existingWGIP) {
+        const host = (entry['dst-host'] || '').toLowerCase();
+        if (captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'))) {
+          try {
+            await mikrotikCall(`/rest/ip/hotspot/walled-garden/ip/${entry['.id']}`, 'DELETE');
+          } catch {
+            try {
+              await mikrotikCall('/rest/ip/hotspot/walled-garden/ip/remove', 'POST', { '.id': entry['.id'] });
+            } catch {}
+          }
+        }
+      }
 
       let wgCreated = 0;
       for (const domain of walledGardenDomains) {
@@ -552,8 +580,8 @@ export async function POST(request) {
         step: 'Walled Garden (Captive Portal)',
         status: 'ok',
         detail: wgCreated > 0
-          ? `${wgCreated} domain(s) added — login page, payments, and OS detection allowed before auth`
-          : `All ${walledGardenDomains.length} required domains already configured`,
+          ? `${wgCreated} domain(s) added — login page, banks & payment gateways allowed before auth`
+          : `All ${walledGardenDomains.length} required domains configured; captive probe domains excluded for iOS/Android popup`,
       });
     } catch (e) {
       results.push({ step: 'Walled Garden (Captive Portal)', status: 'warn', detail: 'Could not configure: ' + e.message });

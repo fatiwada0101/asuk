@@ -9,13 +9,12 @@ import ReceiptModal from './ReceiptModal';
 import { ReceiptIcon } from './Icons';
 
 /**
- * AutoConnectRedirect — after purchase, auto-login to MikroTik captive portal.
- * Shows a 5-second countdown, then submits credentials to the hotspot login endpoint.
- * User can also click immediately to connect, or cancel auto-connect.
+ * AutoConnectRedirect — after purchase, redirects to the hotspot login page
+ * with the voucher code pre-filled in the form, allowing the user to click "Connect"
+ * when they are ready without starting their timer prematurely.
  */
 function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
-  const [countdown, setCountdown] = useState(4);
-  const [connecting, setConnecting] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   const [cancelled, setCancelled] = useState(false);
 
   const getTargetUrl = () => {
@@ -24,47 +23,18 @@ function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
       const customLogin = sp.get('link_login_only') || sp.get('link-login-only');
       if (customLogin) return customLogin;
     }
-    const cleanUrl = (hotspotUrl || 'asuktech.net').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-    return `http://${cleanUrl}/login`;
+    if (hotspotUrl && !hotspotUrl.includes('localhost') && !hotspotUrl.includes('127.0.0.1')) {
+      const cleanUrl = hotspotUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      return `http://${cleanUrl}/login`;
+    }
+    return '/login';
   };
 
-  const handleAutoConnect = () => {
-    if (connecting) return;
-    setConnecting(true);
-
+  const handleRedirectToLogin = () => {
     const cleanCode = (code || '').trim();
     const targetUrl = getTargetUrl();
-    const returnDst = typeof window !== 'undefined'
-      ? `${window.location.origin}/vouchers/status?code=${encodeURIComponent(cleanCode)}`
-      : '';
-
-    try {
-      // Build form for standard MikroTik Hotspot POST authentication
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}`;
-      form.style.display = 'none';
-
-      const fields = {
-        username: cleanCode,
-        password: cleanCode,
-        dst: returnDst,
-      };
-
-      for (const [key, val] of Object.entries(fields)) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = val;
-        form.appendChild(input);
-      }
-
-      document.body.appendChild(form);
-      form.submit();
-    } catch {
-      // Fallback to direct navigation
-      window.location.href = `${targetUrl}?username=${encodeURIComponent(cleanCode)}&password=${encodeURIComponent(cleanCode)}&dst=${encodeURIComponent(returnDst)}`;
-    }
+    const sep = targetUrl.includes('?') ? '&' : '?';
+    window.location.href = `${targetUrl}${sep}code=${encodeURIComponent(cleanCode)}&username=${encodeURIComponent(cleanCode)}`;
   };
 
   useEffect(() => {
@@ -73,7 +43,7 @@ function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleAutoConnect();
+          handleRedirectToLogin();
           return 0;
         }
         return prev - 1;
@@ -84,17 +54,18 @@ function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
 
   if (cancelled) {
     return (
-      <div style={{ marginTop: 12, textAlign: 'center' }}>
+      <div style={{ marginTop: 14, textAlign: 'center' }}>
         <button
-          onClick={handleAutoConnect}
+          onClick={handleRedirectToLogin}
           style={{
-            width: '100%', padding: '12px', fontWeight: 700, fontSize: '14px',
+            width: '100%', padding: '13px', fontWeight: 700, fontSize: '14px',
             background: 'linear-gradient(135deg, #10B981, #059669)',
             color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)',
           }}
         >
-          🚀 Connect to Wi-Fi Now
+          🚀 Go to Wi-Fi Login (Code Pre-Filled)
         </button>
       </div>
     );
@@ -103,25 +74,21 @@ function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
   return (
     <div style={{ marginTop: 14 }}>
       <button
-        onClick={handleAutoConnect}
-        disabled={connecting}
+        onClick={handleRedirectToLogin}
         style={{
           width: '100%', padding: '14px', fontWeight: 800, fontSize: '15px',
-          background: connecting ? '#4b5563' : 'linear-gradient(135deg, #10B981, #059669)',
-          color: '#fff', border: 'none', borderRadius: 12, cursor: connecting ? 'wait' : 'pointer',
+          background: 'linear-gradient(135deg, #10B981, #059669)',
+          color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-          animation: !connecting ? 'pulse-green 2s ease-in-out infinite' : 'none',
+          animation: 'pulse-green 2s ease-in-out infinite',
         }}
       >
-        {connecting
-          ? '🔄 Authenticating with Wi-Fi...'
-          : `🚀 Auto-Connecting in ${countdown}s — Tap to Connect Now`
-        }
+        🚀 Go to Wi-Fi Login in {countdown}s — Tap to Open Now
       </button>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
         <span style={{ fontSize: '11px', color: '#9ca3af' }}>
-          Auto-logging into <strong>{wifiSsid || 'Wi-Fi'}</strong>
+          Code will be pre-filled • Click Connect on login page
         </span>
         <button
           onClick={() => setCancelled(true)}
@@ -131,7 +98,7 @@ function AutoConnectRedirect({ code, hotspotUrl, wifiSsid }) {
             padding: '2px 4px',
           }}
         >
-          Cancel Auto-Login
+          Stay on Receipt
         </button>
       </div>
     </div>
@@ -298,6 +265,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
         plan: plan.name,
         duration: plan.duration,
         purchasedAt: Date.now(),
+        isUsed: false,
       };
       if (typeof window !== 'undefined') {
         try {
@@ -407,6 +375,7 @@ export default function CheckoutModal({ isOpen, onClose, plan, onSuccess }) {
               plan: plan.name,
               duration: plan.duration,
               purchasedAt: Date.now(),
+              isUsed: false,
             };
             if (typeof window !== 'undefined') {
               try {
