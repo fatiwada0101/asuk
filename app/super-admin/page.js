@@ -1787,6 +1787,8 @@ export default function SuperAdminPage() {
 
   // Misc
   const [copiedPin, setCopiedPin] = useState('');
+  const [rebootLoading, setRebootLoading] = useState(false);
+  const [showRebootModal, setShowRebootModal] = useState(false);
 
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); }, []);
@@ -1993,6 +1995,36 @@ export default function SuperAdminPage() {
       if (!silent) showToast(`Network error: ${msg}`);
     } finally { setTestLoading(false); }
   }, [adminHeaders]);
+
+  const handleRestartMikrotik = useCallback(async () => {
+    setRebootLoading(true);
+    setShowRebootModal(false);
+    showToast('🔄 Sending reboot command to MikroTik router via REST API...');
+
+    try {
+      const res = await fetch('/api/mikrotik/reboot', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('✅ Router reboot initiated! Hardware is restarting (back online in ~30–45s).');
+        setTestResult({ connected: false, error: 'Router is currently rebooting...' });
+
+        // Auto-poll connection after router reboots
+        setTimeout(() => { handleTestMikrotik(true); }, 25000);
+        setTimeout(() => { handleTestMikrotik(false); }, 40000);
+      } else {
+        showToast(`❌ Reboot failed: ${data.error || 'Unknown router error'}`);
+      }
+    } catch (err) {
+      showToast(`Network error triggering reboot: ${err.message}`);
+    } finally {
+      setRebootLoading(false);
+    }
+  }, [adminHeaders, handleTestMikrotik, showToast]);
 
   // Initial load
   useEffect(() => {
@@ -4908,7 +4940,115 @@ export default function SuperAdminPage() {
                 <button className="sa-btn-outline" onClick={() => handleTestMikrotik(false)} disabled={testLoading}>
                   {testLoading ? 'Testing...' : 'Test Connection'}
                 </button>
+                <button
+                  type="button"
+                  className="sa-btn-outline"
+                  onClick={() => setShowRebootModal(true)}
+                  disabled={rebootLoading || testLoading}
+                  style={{
+                    borderColor: 'rgba(239, 68, 68, 0.45)',
+                    color: '#EF4444',
+                    background: 'rgba(239, 68, 68, 0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 700,
+                  }}
+                  title="Reboot MikroTik router hardware via REST API"
+                >
+                  <span style={{ fontSize: '14px' }}>🔄</span>
+                  <span>{rebootLoading ? 'Restarting...' : 'Restart Router'}</span>
+                </button>
               </div>
+
+              {/* Reboot Confirmation Modal */}
+              {showRebootModal && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(6px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 99999,
+                  padding: '20px',
+                }}>
+                  <div style={{
+                    background: '#18181B',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: 20,
+                    padding: '26px',
+                    maxWidth: 440,
+                    width: '100%',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#EF4444',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 22,
+                      }}>
+                        ⚠️
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#fff' }}>
+                          Restart MikroTik Router?
+                        </h4>
+                        <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#A1A1AA' }}>
+                          Reboots RouterOS hardware via REST API
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      fontSize: '12.5px',
+                      color: '#FCA5A5',
+                      lineHeight: 1.5,
+                      marginBottom: 20,
+                    }}>
+                      <strong>Notice:</strong> All active Wi-Fi sessions and internet traffic through this router will be momentarily disconnected for <strong>30–60 seconds</strong> while the hardware reboots.
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="sa-btn-outline"
+                        onClick={() => setShowRebootModal(false)}
+                        disabled={rebootLoading}
+                        style={{ padding: '10px 18px', fontSize: '13px' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="sa-btn-primary"
+                        onClick={handleRestartMikrotik}
+                        disabled={rebootLoading}
+                        style={{
+                          background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+                          border: 'none',
+                          padding: '10px 20px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: rebootLoading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {rebootLoading ? 'Restarting...' : 'Yes, Restart Router Now'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Section 2: 1-Click Auto Setup ── */}
