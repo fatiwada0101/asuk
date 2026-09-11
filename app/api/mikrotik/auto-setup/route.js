@@ -171,7 +171,7 @@ export async function POST(request) {
     if (serverProfiles.length > 0) {
       for (const sp of serverProfiles) {
         try {
-          await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
+          const res = await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
             '.id': sp['.id'],
             'dns-name': hotspotUrl,
             'login-by': 'cookie,http-chap,http-pap,mac-cookie',
@@ -179,6 +179,15 @@ export async function POST(request) {
             'hotspot-address': '10.5.50.1',
             'html-directory': targetDir,
           });
+
+          if (!res.ok && sp['.id']) {
+            await mikrotikCall(`/rest/ip/hotspot/profile/${encodeURIComponent(sp['.id'])}`, 'PATCH', {
+              'dns-name': hotspotUrl,
+              'login-by': 'cookie,http-chap,http-pap,mac-cookie',
+              'hotspot-address': '10.5.50.1',
+              'html-directory': targetDir,
+            });
+          }
           profilesUpdated++;
         } catch {}
       }
