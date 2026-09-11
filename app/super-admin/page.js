@@ -5167,6 +5167,7 @@ export default function SuperAdminPage() {
                         <span>🔒</span> 100% Protected & Preserved (Zero Risk):
                       </div>
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <li><strong>All Vouchers & Customer Accounts</strong> (Never deleted; active vouchers stay 100% valid)</li>
                         <li><strong>/ip cloud</strong> (DDNS & Back To Home Cloud VPN Tunnel)</li>
                         <li><strong>REST API & WWW-SSL ports</strong> (Remote management stays online)</li>
                         <li><strong>Router users & passwords</strong> (Admin credentials untouched)</li>
