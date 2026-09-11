@@ -1786,9 +1786,11 @@ export default function SuperAdminPage() {
   const actionLockRef = useRef(false);
 
   // Misc
-  const [copiedPin, setCopiedPin] = useState('');
   const [rebootLoading, setRebootLoading] = useState(false);
   const [showRebootModal, setShowRebootModal] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [restoreResult, setRestoreResult] = useState(null);
 
 
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); }, []);
@@ -2025,6 +2027,45 @@ export default function SuperAdminPage() {
       setRebootLoading(false);
     }
   }, [adminHeaders, handleTestMikrotik, showToast]);
+
+  const handleRestoreDefaults = useCallback(async () => {
+    setRestoreLoading(true);
+    showToast('🛡️ Restoring clean factory hotspot & default login page...');
+
+    try {
+      const res = await fetch('/api/mikrotik/restore-defaults', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          wifi_ssid: mikrotikForm.wifi_ssid || 'Hotspot',
+          business_name: mikrotikForm.wifi_ssid || 'Internet Hotspot',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRestoreResult(data);
+        setShowRestoreModal(false);
+        showToast('✅ Factory default login page & hotspot settings restored! Cloud access remains 100% active.');
+        handleTestMikrotik(true);
+        setPortalTemplate('factory-default');
+        setPortalConfig({
+          logoUrl: '',
+          businessName: mikrotikForm.wifi_ssid || 'Internet Hotspot',
+          contactFooter: '',
+          primaryColor: '',
+          buyUrl: '',
+        });
+        setPortalPreviewKey(k => k + 1);
+      } else {
+        showToast(`❌ Restore failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      showToast(`Network error restoring defaults: ${err.message}`);
+    } finally {
+      setRestoreLoading(false);
+    }
+  }, [adminHeaders, mikrotikForm.wifi_ssid, handleTestMikrotik, showToast]);
 
   // Initial load
   useEffect(() => {
@@ -4959,6 +5000,25 @@ export default function SuperAdminPage() {
                   <span style={{ fontSize: '14px' }}>🔄</span>
                   <span>{rebootLoading ? 'Restarting...' : 'Restart Router'}</span>
                 </button>
+                <button
+                  type="button"
+                  className="sa-btn-outline"
+                  onClick={() => setShowRestoreModal(true)}
+                  disabled={restoreLoading || rebootLoading || testLoading}
+                  style={{
+                    borderColor: 'rgba(245, 158, 11, 0.45)',
+                    color: '#F59E0B',
+                    background: 'rgba(245, 158, 11, 0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 700,
+                  }}
+                  title="Safely restore MikroTik default login page and clean hotspot configuration"
+                >
+                  <span style={{ fontSize: '14px' }}>🛡️</span>
+                  <span>{restoreLoading ? 'Restoring...' : 'Safe Restore Defaults'}</span>
+                </button>
               </div>
 
               {/* Reboot Confirmation Modal */}
@@ -5049,6 +5109,141 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
               )}
+
+              {/* Safe Restore Defaults Confirmation Modal */}
+              {showRestoreModal && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.82)',
+                  backdropFilter: 'blur(6px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 99999,
+                  padding: '20px',
+                }}>
+                  <div style={{
+                    background: '#18181B',
+                    border: '1px solid rgba(245, 158, 11, 0.45)',
+                    borderRadius: 20,
+                    padding: '26px',
+                    maxWidth: 520,
+                    width: '100%',
+                    boxShadow: '0 25px 60px rgba(0,0,0,0.65)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        color: '#F59E0B',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 22,
+                      }}>
+                        🛡️
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#fff' }}>
+                          Safe Restore Hotspot Defaults?
+                        </h4>
+                        <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#A1A1AA' }}>
+                          Restores factory login page & clean hotspot without touching Cloud Access
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 100% Protected Guarantee */}
+                    <div style={{
+                      background: 'rgba(34, 197, 94, 0.08)',
+                      border: '1px solid rgba(34, 197, 94, 0.25)',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      fontSize: '12px',
+                      color: '#86EFAC',
+                      lineHeight: 1.5,
+                      marginBottom: 12,
+                    }}>
+                      <div style={{ fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, color: '#4ADE80' }}>
+                        <span>🔒</span> 100% Protected & Preserved (Zero Risk):
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <li><strong>/ip cloud</strong> (DDNS & Back To Home Cloud VPN Tunnel)</li>
+                        <li><strong>REST API & WWW-SSL ports</strong> (Remote management stays online)</li>
+                        <li><strong>Router users & passwords</strong> (Admin credentials untouched)</li>
+                        <li><strong>WAN IP address & Default routes</strong> (Internet connection stays active)</li>
+                      </ul>
+                    </div>
+
+                    {/* What Gets Reverted */}
+                    <div style={{
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      fontSize: '12px',
+                      color: '#FCD34D',
+                      lineHeight: 1.5,
+                      marginBottom: 12,
+                    }}>
+                      <div style={{ fontWeight: 800, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, color: '#F59E0B' }}>
+                        <span>⚙️</span> What Will Be Reverted to Factory Clean:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <li>Hotspot Login Page → Clean MikroTik factory default <code>login.html</code></li>
+                        <li>Hotspot Server Profile → Standard <code>hotspot</code> directory & CHAP/PAP</li>
+                        <li>Walled Garden → Cleans custom payment & banking domain rules</li>
+                        <li>Fasttrack Filter → Cleans portal bypass rules</li>
+                      </ul>
+                    </div>
+
+                    {/* Reversible Notice */}
+                    <div style={{
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      borderRadius: 12,
+                      padding: '10px 14px',
+                      fontSize: '11.5px',
+                      color: '#93C5FD',
+                      lineHeight: 1.4,
+                      marginBottom: 20,
+                    }}>
+                      🔄 <strong>Reversible Anytime:</strong> You can click <strong>"Auto-Setup Router"</strong> at any time to re-apply all customized branding, payment gateways, and walled garden domains!
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="sa-btn-outline"
+                        onClick={() => setShowRestoreModal(false)}
+                        disabled={restoreLoading}
+                        style={{ padding: '10px 18px', fontSize: '13px' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="sa-btn-primary"
+                        onClick={handleRestoreDefaults}
+                        disabled={restoreLoading}
+                        style={{
+                          background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                          border: 'none',
+                          color: '#000',
+                          padding: '10px 20px',
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: restoreLoading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {restoreLoading ? 'Restoring Defaults...' : 'Yes, Safe Restore Defaults'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Section 2: 1-Click Auto Setup ── */}
@@ -5056,7 +5251,12 @@ export default function SuperAdminPage() {
               <div className="sa-card-header">
                 <div>
                   <h3 className="sa-card-title">{'⚡'} 1-Click Auto Setup</h3>
-                  <p className="sa-card-sub">Fill in the fields below and click the button — it will save, connect, and configure your router automatically</p>
+                  <p className="sa-card-sub">
+                    Fill in the fields below and click the button — it will save, connect, and configure your router automatically.
+                    <span style={{ display: 'block', marginTop: 4, color: '#60A5FA', fontSize: '11.5px' }}>
+                      🔄 Seamless Reversibility: If you ever safe-restore defaults, running 1-Click Auto Setup at any time will cleanly re-apply all custom portals, packages, and payment rules.
+                    </span>
+                  </p>
                 </div>
                 {autoSetupResult && (
                   <span className={`sa-badge ${autoSetupResult.all_ok ? 'sa-badge-success' : 'sa-badge-purple'}`}>
