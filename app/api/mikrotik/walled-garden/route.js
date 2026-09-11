@@ -36,6 +36,15 @@ export async function POST(request) {
     }
 
     const cleanHost = dst_host.trim();
+    const lowerHost = cleanHost.toLowerCase();
+
+    // Prevent adding the router's own hotspot domain or internal IP
+    if (lowerHost.includes('asuktech.net') || lowerHost.includes('10.5.50.')) {
+      return NextResponse.json({
+        error: 'Cannot add hotspot portal domain or internal router IP to Walled Garden. Doing so bypasses captive portal interception and causes HttpProxy Gateway Timeout loops.',
+      }, { status: 400 });
+    }
+
     const fullComment = category ? `[${category}] ${comment}`.trim() : comment;
 
     const result = await addWalledGardenEntry({
@@ -43,6 +52,7 @@ export async function POST(request) {
       action: 'allow',
       comment: fullComment,
     });
+
 
     // Log to change history
     await logChange({

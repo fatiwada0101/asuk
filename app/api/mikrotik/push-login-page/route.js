@@ -1,18 +1,27 @@
 import { NextResponse } from 'next/server';
-import { pushHotspotLoginPageToRouter, generateHotspotLoginHtml, getMikroTikConfig } from '@/lib/mikrotik';
+import {
+  pushHotspotLoginPageToRouter,
+  generateHotspotLoginHtml,
+  generateHotspotAloginHtml,
+  generateHotspotStatusHtml,
+  generateHotspotLogoutHtml,
+  getMikroTikConfig,
+} from '@/lib/mikrotik';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { logChange } from '@/lib/changeHistory';
 
 /**
  * GET /api/mikrotik/push-login-page
- * Returns or downloads the generated hotspot login.html template.
- * Supports templateId, logoUrl, businessName, contactFooter, primaryColor.
+ * Returns or downloads the generated hotspot captive portal files:
+ * login.html, alogin.html, status.html, logout.html
+ * Supports file, template_id, logo_url, business_name, contact_footer, primary_color.
  */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const download = searchParams.get('download') === 'true';
+    const fileName = (searchParams.get('file') || 'login.html').toLowerCase();
     const config = await getMikroTikConfig();
 
     // Load saved portal config and branding from app_settings
@@ -45,16 +54,33 @@ export async function GET(request) {
     const contactFooter = searchParams.get('contact_footer') || savedConfig.contactFooter || '';
     const primaryColor = searchParams.get('primary_color') || savedConfig.primaryColor || '';
 
-    const html = generateHotspotLoginHtml({
+    const templateOpts = {
       templateId, wifiSsid, buyUrl, logoUrl, businessName, contactFooter, primaryColor,
-    });
+    };
+
+    let html = '';
+    let targetFileName = 'login.html';
+
+    if (fileName === 'alogin.html' || fileName === 'alogin') {
+      html = generateHotspotAloginHtml(templateOpts);
+      targetFileName = 'alogin.html';
+    } else if (fileName === 'status.html' || fileName === 'status') {
+      html = generateHotspotStatusHtml(templateOpts);
+      targetFileName = 'status.html';
+    } else if (fileName === 'logout.html' || fileName === 'logout') {
+      html = generateHotspotLogoutHtml(templateOpts);
+      targetFileName = 'logout.html';
+    } else {
+      html = generateHotspotLoginHtml(templateOpts);
+      targetFileName = 'login.html';
+    }
 
     if (download) {
       return new NextResponse(html, {
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="login.html"',
+          'Content-Disposition': `attachment; filename="${targetFileName}"`,
         },
       });
     }
@@ -67,6 +93,7 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
 
 /**
  * POST /api/mikrotik/push-login-page

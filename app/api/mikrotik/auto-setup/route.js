@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { buildMikroTikRequest, getMikroTikConfig, generateHotspotLoginHtml } from '@/lib/mikrotik';
+import {
+  buildMikroTikRequest,
+  getMikroTikConfig,
+  generateHotspotLoginHtml,
+  pushHotspotLoginPageToRouter,
+  detectHotspotDirectory,
+} from '@/lib/mikrotik';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 import { logChange } from '@/lib/changeHistory';
@@ -27,6 +33,7 @@ export async function POST(request) {
   const results = [];
 
   try {
+    const body = await request.json().catch(() => ({}));
     const config = await getMikroTikConfig();
     const hotspotUrl = config.hotspot_url || 'asuktech.net';
     const wifiSsid = config.wifi_ssid || 'Asuk Tech Wi-Fi';
@@ -149,6 +156,12 @@ export async function POST(request) {
     }
 
     // ═══ Step 3: Ensure hotspot server profile exists with DNS name ═══
+    let targetDir = 'hotspot';
+    try {
+      const routerFiles = await mikrotikCall('/rest/file') || [];
+      targetDir = detectHotspotDirectory(routerFiles);
+    } catch {}
+
     let serverProfiles = [];
     try {
       serverProfiles = await mikrotikCall('/rest/ip/hotspot/profile') || [];
@@ -161,30 +174,32 @@ export async function POST(request) {
           await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
             '.id': sp['.id'],
             'dns-name': hotspotUrl,
-            'login-by': 'cookie,http-chap,http-pap',
+            'login-by': 'cookie,http-chap,http-pap,mac-cookie',
             'http-cookie-lifetime': '3d',
-            'html-directory': 'hotspot',
+            'hotspot-address': '10.5.50.1',
+            'html-directory': targetDir,
           });
           profilesUpdated++;
         } catch {}
       }
-      results.push({ step: 'Hotspot Portal Domain', status: 'ok', detail: `"${hotspotUrl}" set on ${profilesUpdated} server profile(s)` });
+      results.push({ step: 'Hotspot Portal Domain', status: 'ok', detail: `"${hotspotUrl}" set on ${profilesUpdated} server profile(s) (Storage: ${targetDir}, Auth: PAP/CHAP/Cookie)` });
     } else {
       // Create a new server profile
       try {
         await mikrotikCall('/rest/ip/hotspot/profile/add', 'POST', {
           name: 'asuk-profile',
           'dns-name': hotspotUrl,
-          'login-by': 'cookie,http-chap,http-pap',
+          'login-by': 'cookie,http-chap,http-pap,mac-cookie',
           'http-cookie-lifetime': '3d',
           'hotspot-address': '10.5.50.1',
-          'html-directory': 'hotspot',
+          'html-directory': targetDir,
         });
-        results.push({ step: 'Hotspot Portal Domain', status: 'ok', detail: `Created server profile "asuk-profile" with domain "${hotspotUrl}"` });
+        results.push({ step: 'Hotspot Portal Domain', status: 'ok', detail: `Created server profile "asuk-profile" with domain "${hotspotUrl}" (Storage: ${targetDir})` });
       } catch (e) {
         results.push({ step: 'Hotspot Portal Domain', status: 'warn', detail: 'Failed to create server profile: ' + e.message });
       }
     }
+
 
     // ═══ Step 4: Bridge & Access Point Ports + Hotspot Server ═══
     let bridges = [];
@@ -419,13 +434,12 @@ export async function POST(request) {
         }
       } catch {}
 
-      // Add the router's DNS hotspot name if configured
-      if (hotspotUrl && !hotspotUrl.includes('192.168') && !hotspotUrl.includes('10.')) {
-        dynamicAppDomains.push(`*${hotspotUrl}*`);
-      }
+      // NOTE: hotspotUrl (e.g. asuktech.net) and router IP (10.5.50.1) MUST NEVER be added to Walled Garden.
+      // Doing so forces RouterOS transparent HttpProxy into an external connection loop,
+      // producing "ERROR: Gateway Timeout While trying to retrieve the URL http://asuktech.net/login: Connection refused".
 
       // Comprehensive domains for captive portal, banks, payment switches & 3DS ACS links
-      const walledGardenDomains = [
+      const rawWalledGardenDomains = [
         ...dynamicAppDomains,
         ...(dynamicSupabaseHost ? [dynamicSupabaseHost] : []),
         '*.supabase.co',
@@ -522,14 +536,23 @@ export async function POST(request) {
         '*.cloudflare.com',
       ];
 
-      // CRITICAL FOR IOS/ANDROID CAPTIVE POPUP DETECTION:
-      // Remove captive probe domains if they were previously added.
-      // If captive.apple.com or connectivitycheck.gstatic.com are in walled garden,
-      // iPhones and Android phones think they already have full internet and suppress the captive popup!
+      // Exclude router's own domain or IP from walled garden list
+      const walledGardenDomains = rawWalledGardenDomains.filter(d => {
+        const lower = String(d || '').toLowerCase();
+        return !lower.includes('asuktech.net') && !lower.includes(hotspotUrl.toLowerCase()) && !lower.includes('10.5.50.');
+      });
+
+      // CRITICAL FOR IOS/ANDROID CAPTIVE POPUP DETECTION & PROXY LOOP PREVENTION:
+      // 1. Remove captive probe domains (iPhones/Androids suppress captive popup if probe is allowed)
+      // 2. Remove router's own hotspot domain/IP (prevents HttpProxy connection refused loop)
       const captiveProbeDomains = ['captive.apple.com', 'connectivitycheck.gstatic.com', '*.msftconnecttest.com', 'msftconnecttest.com'];
+      const hotspotOwnDomains = ['asuktech.net', hotspotUrl.toLowerCase(), '10.5.50.1'];
+
       for (const entry of existingWG) {
         const host = (entry['dst-host'] || '').toLowerCase();
-        if (captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'))) {
+        const isProbe = captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'));
+        const isOwnHotspot = hotspotOwnDomains.some(od => od && (host === od || host.includes(od)));
+        if (isProbe || isOwnHotspot) {
           try {
             await mikrotikCall(`/rest/ip/hotspot/walled-garden/${entry['.id']}`, 'DELETE');
           } catch {
@@ -541,7 +564,10 @@ export async function POST(request) {
       }
       for (const entry of existingWGIP) {
         const host = (entry['dst-host'] || '').toLowerCase();
-        if (captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'))) {
+        const dstAddr = (entry['dst-address'] || '').toLowerCase();
+        const isProbe = captiveProbeDomains.some(cp => host === cp || host.includes('captive.apple') || host.includes('connectivitycheck.gstatic') || host.includes('msftconnecttest'));
+        const isOwnHotspot = hotspotOwnDomains.some(od => od && (host === od || host.includes(od) || dstAddr.includes(od)));
+        if (isProbe || isOwnHotspot) {
           try {
             await mikrotikCall(`/rest/ip/hotspot/walled-garden/ip/${entry['.id']}`, 'DELETE');
           } catch {
@@ -551,6 +577,7 @@ export async function POST(request) {
           }
         }
       }
+
 
       let wgCreated = 0;
       for (const domain of walledGardenDomains) {
@@ -607,22 +634,8 @@ export async function POST(request) {
       results.push({ step: 'NAT Masquerade', status: 'warn', detail: 'Could not add NAT rule: ' + e.message });
     }
 
-    // ═══ Step 8: Hotspot Login Portal — self-contained responsive voucher portal ═══
+    // ═══ Step 8: Hotspot Login Portal — full captive portal suite (login, alogin, status, logout) ═══
     try {
-      // Update hotspot server profiles to use standard hotspot directory and PAP/CHAP authentication
-      const updatedServerProfiles = await mikrotikCall('/rest/ip/hotspot/profile') || [];
-      for (const sp of updatedServerProfiles) {
-        try {
-          await mikrotikCall('/rest/ip/hotspot/profile/set', 'POST', {
-            '.id': sp['.id'],
-            'dns-name': hotspotUrl,
-            'login-by': 'cookie,http-chap,http-pap',
-            'http-cookie-lifetime': '3d',
-            'html-directory': 'hotspot',
-          });
-        } catch {}
-      }
-
       // Load saved portal template config (if user has set one via Login Design tab)
       let savedPortalConfig = {};
       let savedBrandingConfig = {};
@@ -642,8 +655,10 @@ export async function POST(request) {
         || (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/packages` : '')
         || 'https://www.asuk.tech/packages';
 
-      const portalHtml = generateHotspotLoginHtml({
-        templateId: savedPortalConfig.templateId || 'midnight-glass',
+      const selectedTemplateId = body.template_id || savedPortalConfig.templateId || 'midnight-glass';
+
+      const pushResult = await pushHotspotLoginPageToRouter({
+        templateId: selectedTemplateId,
         wifiSsid: wifiSsid || 'Asuk Tech Wi-Fi',
         buyUrl: defaultBuyUrl,
         businessName: savedPortalConfig.businessName || savedBrandingConfig.app_name || wifiSsid || 'Asuk Tech Wi-Fi',
@@ -652,54 +667,17 @@ export async function POST(request) {
         primaryColor: savedPortalConfig.primaryColor || '',
       });
 
-
-      let portalInstalled = false;
-
-      // Method A: Direct REST API file update (Fast & reliable on RouterOS v7)
-      try {
-        const files = await mikrotikCall('/rest/file') || [];
-        const loginFile = Array.isArray(files) && files.find(f => f.name === 'hotspot/login.html');
-        if (loginFile && loginFile['.id']) {
-          const patchRes = await mikrotikCall(`/rest/file/${encodeURIComponent(loginFile['.id'])}`, 'PATCH', {
-            contents: portalHtml,
-          });
-          if (patchRes && (patchRes.ok || patchRes.status === 200)) {
-            portalInstalled = true;
-          }
-        }
-      } catch {}
-
-      // Method B: System script fallback
-      if (!portalInstalled) {
-        try {
-          const scriptSource = `:do { /file print file="hotspot/login.html"; :delay 1s; /file set [find name="hotspot/login.html"] contents="${portalHtml.replace(/"/g, '\\"')}"; } on-error={}`;
-          const scripts = await mikrotikCall('/rest/system/script') || [];
-          const scriptName = 'asuk-hotspot-portal';
-          const existingScript = Array.isArray(scripts) && scripts.find(s => s.name === scriptName);
-          if (existingScript) {
-            await mikrotikCall('/rest/system/script/set', 'POST', { '.id': existingScript['.id'], source: scriptSource });
-          } else {
-            await mikrotikCall('/rest/system/script/add', 'POST', {
-              name: scriptName,
-              source: scriptSource,
-              policy: 'ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon',
-            });
-          }
-          await mikrotikCall('/rest/system/script/run', 'POST', { number: scriptName });
-          portalInstalled = true;
-        } catch {}
-      }
-
       results.push({
         step: 'Hotspot Login Portal UI',
         status: 'ok',
-        detail: portalInstalled
-          ? 'Modern captive portal installed directly on router — loads offline with instant voucher entry'
-          : 'Hotspot server profile configured for local voucher authentication',
+        detail: pushResult.portalInstalled
+          ? `Template "${selectedTemplateId}" + status/alogin/logout suite deployed to router (${pushResult.targetDir})`
+          : `Hotspot server profile active with template "${selectedTemplateId}"`,
       });
     } catch (e) {
-      results.push({ step: 'Hotspot Login Portal UI', status: 'info', detail: 'Portal profile ready: ' + e.message });
+      results.push({ step: 'Hotspot Login Portal UI', status: 'warn', detail: 'Portal setup: ' + e.message });
     }
+
 
 
     try {
