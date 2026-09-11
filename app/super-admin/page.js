@@ -1786,6 +1786,7 @@ export default function SuperAdminPage() {
   const actionLockRef = useRef(false);
 
   // Misc
+  const [copiedPin, setCopiedPin] = useState('');
   const [rebootLoading, setRebootLoading] = useState(false);
   const [showRebootModal, setShowRebootModal] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
