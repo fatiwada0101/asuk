@@ -370,7 +370,8 @@ export async function POST(request) {
       const uploadSpeed = plan.upload_speed || hsSettings.default_upload_speed || '12M';
       const downloadSpeed = plan.download_speed || hsSettings.default_download_speed || '12M';
       const rateLimit = `${uploadSpeed}/${downloadSpeed}`;
-      const sharedUsers = String(hsSettings.sharing_enabled ? (plan.devices || hsSettings.default_devices || 1) : 1);
+      const planDeviceCount = Number(plan.devices) || hsSettings.default_devices || 1;
+      const sharedUsers = String((hsSettings.sharing_enabled || planDeviceCount > 1) ? planDeviceCount : 1);
 
       if (existingNames.includes(plan.name)) {
         const existing = existingProfiles.find(p => p.name === plan.name);

@@ -68,7 +68,7 @@ export async function POST(request) {
         .eq('key', 'hotspot_settings')
         .maybeSingle();
       if (hsData?.value) {
-        if (!hsData.value.sharing_enabled) {
+        if (!hsData.value.sharing_enabled && !(Number(planData.devices) > 1)) {
           planDevices = 1;
         }
         expiryMode = hsData.value.expiry_mode || 'elapsed';

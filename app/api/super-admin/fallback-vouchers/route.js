@@ -158,7 +158,7 @@ export async function POST(request) {
           defaultDevices = Number(hsSetting.value.default_devices) || 1;
           defaultUploadSpeed = hsSetting.value.default_upload_speed || '12M';
           defaultDownloadSpeed = hsSetting.value.default_download_speed || '12M';
-          if (!hsSetting.value.sharing_enabled) defaultDevices = 1;
+          if (!hsSetting.value.sharing_enabled && !(defaultDevices > 1)) defaultDevices = 1;
           expiryMode = hsSetting.value.expiry_mode || 'elapsed';
         }
       } catch (e) {}
@@ -178,15 +178,12 @@ export async function POST(request) {
       };
       const limitUptime = uptimeMap[duration] || duration;
 
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       const createdVouchers = [];
       const errors = [];
 
       for (let i = 0; i < quantity; i++) {
-        let code = 'WIFI-';
-        for (let c = 0; c < 6; c++) {
-          code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        // Generate a 5-digit random numeric code
+        let code = String(Math.floor(10000 + Math.random() * 90000));
 
         let routerSuccess = true;
         if (online) {

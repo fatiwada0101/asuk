@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createOrQueueHotspotUser } from '@/lib/mikrotik';
+import { createOrQueueHotspotUser, deleteHotspotUser, getHotspotUsers } from '@/lib/mikrotik';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 
@@ -89,9 +89,9 @@ export async function POST(request) {
   try {
     const {
       quantity = 1,
-      prefix = 'WIFI-',
-      code_format = 'alphanumeric',
-      code_length = 6,
+      prefix = '',
+      code_format = 'numbers_only',
+      code_length = 5,
       profile = 'default',
       expiry_type = 'daily',
       custom_duration,
@@ -104,8 +104,8 @@ export async function POST(request) {
     } = await request.json();
 
     const count = Math.min(Math.max(Number(quantity) || 1, 1), 100);
-    const codeLen = Math.min(Math.max(Number(code_length) || 6, 4), 12);
-    const cleanPrefix = typeof prefix === 'string' ? prefix.trim().toUpperCase() : 'WIFI-';
+    const codeLen = Math.min(Math.max(Number(code_length) || 5, 5), 12);
+    const cleanPrefix = typeof prefix === 'string' ? prefix.trim().toUpperCase() : '';
 
     // Map expiry_type to RouterOS uptime format
     const expiryMap = {
@@ -147,7 +147,7 @@ export async function POST(request) {
         .eq('key', 'hotspot_settings')
         .maybeSingle();
       if (hsData?.value) {
-        if (!hsData.value.sharing_enabled) effectiveDevices = 1;
+        if (!hsData.value.sharing_enabled && !(effectiveDevices > 1)) effectiveDevices = 1;
         expiryMode = hsData.value.expiry_mode || 'elapsed';
       }
 
@@ -211,7 +211,7 @@ export async function POST(request) {
         });
 
         // Insert into Supabase vouchers table
-        await supabaseAdmin
+        const { data: insertedVoucher } = await supabaseAdmin
           .from('vouchers')
           .insert({
             voucher_code: code,
@@ -223,12 +223,15 @@ export async function POST(request) {
             batch_id: batchId,
             data_limit: data_limit || 'unlimited',
             serial_number: serialNum,
-          });
+          })
+          .select('id')
+          .single();
 
         const cleanHotspot = hotspotUrl || 'asuktech.net';
         const qrUrl = `http://${cleanHotspot}/login?code=${encodeURIComponent(code)}`;
 
         results.push({
+          id: insertedVoucher?.id || null,
           code,
           serial_number: serialNum,
           router_id: routerResult.routerId,
@@ -266,6 +269,92 @@ export async function POST(request) {
     return NextResponse.json(
       { error: 'Failed to generate vouchers', details: error.message },
       { status: 502 }
+    );
+  }
+}
+
+/**
+ * DELETE — Delete individual voucher or entire batch
+ * Body: { voucher_id: "uuid" } or { batch_id: "BATCH-..." }
+ */
+export async function DELETE(request) {
+  if (!(await validateAdminAuth(request))) return unauthorizedResponse();
+
+  try {
+    const { voucher_id, batch_id } = await request.json();
+
+    if (!voucher_id && !batch_id) {
+      return NextResponse.json({ error: 'Either voucher_id or batch_id is required' }, { status: 400 });
+    }
+
+    // Fetch voucher codes to remove from router
+    let voucherCodes = [];
+    if (batch_id) {
+      const { data: batchVouchers } = await supabaseAdmin
+        .from('vouchers')
+        .select('id, voucher_code')
+        .eq('batch_id', batch_id);
+      voucherCodes = (batchVouchers || []).map(v => v.voucher_code).filter(Boolean);
+    } else {
+      const { data: single } = await supabaseAdmin
+        .from('vouchers')
+        .select('id, voucher_code')
+        .eq('id', voucher_id)
+        .maybeSingle();
+      if (single?.voucher_code) voucherCodes = [single.voucher_code];
+    }
+
+    // Best-effort: remove from MikroTik router
+    let routerRemoved = 0;
+    if (voucherCodes.length > 0) {
+      try {
+        const routerUsers = await getHotspotUsers();
+        for (const code of voucherCodes) {
+          const user = (routerUsers || []).find(u => u.name === code);
+          if (user && user['.id']) {
+            try {
+              await deleteHotspotUser(user['.id']);
+              routerRemoved++;
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.warn('Router cleanup skipped (offline?):', e.message);
+      }
+    }
+
+    // Delete from Supabase
+    let dbDeleted = 0;
+    if (batch_id) {
+      const { data, error } = await supabaseAdmin
+        .from('vouchers')
+        .delete()
+        .eq('batch_id', batch_id)
+        .select('id');
+      if (error) throw error;
+      dbDeleted = data?.length || 0;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('vouchers')
+        .delete()
+        .eq('id', voucher_id)
+        .select('id');
+      if (error) throw error;
+      dbDeleted = data?.length || 0;
+    }
+
+    return NextResponse.json({
+      success: true,
+      deleted: dbDeleted,
+      router_removed: routerRemoved,
+      batch_id: batch_id || undefined,
+      voucher_id: voucher_id || undefined,
+    });
+  } catch (error) {
+    console.error('Voucher delete error:', error.message);
+    return NextResponse.json(
+      { error: 'Failed to delete vouchers', details: error.message },
+      { status: 500 }
     );
   }
 }

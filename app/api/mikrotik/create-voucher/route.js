@@ -14,14 +14,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing plan_name or price' }, { status: 400 });
     }
 
-    // Generate 6-char code or use custom
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = custom_code || 'WIFI-';
-    if (!custom_code) {
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-    }
+    // Generate 5-digit numeric code or use custom
+    let code = custom_code || String(Math.floor(10000 + Math.random() * 90000));
 
     // Fetch plan details for devices & speed
     let planDevices = 1;
@@ -52,7 +46,7 @@ export async function POST(request) {
         .maybeSingle();
 
       if (hsData?.value) {
-        if (!hsData.value.sharing_enabled) planDevices = 1;
+        if (!hsData.value.sharing_enabled && !(planDevices > 1)) planDevices = 1;
         expiryMode = hsData.value.expiry_mode || 'elapsed';
       }
     } catch (e) {}

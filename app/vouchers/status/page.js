@@ -237,7 +237,7 @@ function VoucherStatusContent() {
           <WifiIcon size={18} color="#7257FF" />
           <input
             type="text"
-            placeholder="Enter or paste Voucher PIN (e.g. WIFI-7K8M2P)"
+            placeholder="Enter or paste Voucher PIN (e.g. 38472)"
             value={inputCode}
             onChange={(e) => setInputCode(e.target.value.toUpperCase())}
             style={{

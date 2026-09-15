@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getWalledGardenEntries, addWalledGardenEntry, removeWalledGardenEntry } from '@/lib/mikrotik';
+import { getWalledGardenEntries, addWalledGardenEntry, removeWalledGardenEntry, getMikroTikConfig } from '@/lib/mikrotik';
 import { validateAdminAuth, unauthorizedResponse } from '@/lib/admin-auth';
 import { logChange } from '@/lib/changeHistory';
 
@@ -38,10 +38,19 @@ export async function POST(request) {
     const cleanHost = dst_host.trim();
     const lowerHost = cleanHost.toLowerCase();
 
+    // Fetch the configured hotspot domain to block dynamically (not just hardcoded asuktech.net)
+    let hotspotDomain = 'asuktech.net';
+    try {
+      const routerConfig = await getMikroTikConfig();
+      if (routerConfig.hotspot_url) {
+        hotspotDomain = routerConfig.hotspot_url.toLowerCase();
+      }
+    } catch {}
+
     // Prevent adding the router's own hotspot domain or internal IP
-    if (lowerHost.includes('asuktech.net') || lowerHost.includes('10.5.50.')) {
+    if (lowerHost.includes('asuktech.net') || lowerHost.includes(hotspotDomain) || lowerHost.includes('10.5.50.')) {
       return NextResponse.json({
-        error: 'Cannot add hotspot portal domain or internal router IP to Walled Garden. Doing so bypasses captive portal interception and causes HttpProxy Gateway Timeout loops.',
+        error: `Cannot add hotspot portal domain ("${hotspotDomain}") or internal router IP to Walled Garden. Doing so bypasses captive portal interception and causes HttpProxy Gateway Timeout loops.`,
       }, { status: 400 });
     }
 

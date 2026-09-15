@@ -156,7 +156,7 @@ export async function GET(request) {
               .maybeSingle();
 
             if (hsData?.value) {
-              if (!hsData.value.sharing_enabled) planDevices = 1;
+              if (!hsData.value.sharing_enabled && !(planDevices > 1)) planDevices = 1;
               expiryMode = hsData.value.expiry_mode || 'elapsed';
             }
           } catch (e) {}

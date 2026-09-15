@@ -1292,7 +1292,7 @@ function FallbackVouchersTab({ adminHeaders, showToast, plans }) {
                 <label>Voucher Codes (one per line or comma-separated) *</label>
                 <textarea
                   rows={4}
-                  placeholder="WIFI-A1B2C3&#10;WIFI-D4E5F6&#10;WIFI-G7H8J9"
+                  placeholder="12345&#10;67890&#10;24680"
                   value={voucherCodes}
                   onChange={e => setVoucherCodes(e.target.value)}
                   style={{
@@ -1701,9 +1701,9 @@ export default function SuperAdminPage() {
   // Voucher Generator
   const [voucherGen, setVoucherGen] = useState({
     quantity: 10,
-    prefix: 'WIFI-',
-    code_format: 'alphanumeric',
-    code_length: 6,
+    prefix: '',
+    code_format: 'numbers_only',
+    code_length: 5,
     profile: 'default',
     expiry_type: 'daily',
     custom_duration: '1d',
@@ -2344,6 +2344,51 @@ export default function SuperAdminPage() {
       }
     } catch (err) { showToast('Error: ' + err.message); }
     finally { setGenLoading(false); }
+  };
+
+  // Delete individual generated voucher
+  const handleDeleteGeneratedVoucher = async (voucher) => {
+    const code = voucher.code || voucher.voucher_code;
+    if (!confirm(`Delete voucher "${code}"? This removes it from both the database and router.`)) return;
+    try {
+      const res = await fetch('/api/mikrotik/generate-vouchers', {
+        method: 'DELETE',
+        headers: adminHeaders(),
+        body: JSON.stringify({ voucher_id: voucher.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedVouchers(prev => prev.filter(v => v.id !== voucher.id));
+        showToast(`🗑️ Deleted voucher ${code} (${data.router_removed} removed from router)`);
+        fetchBatchHistory();
+      } else {
+        showToast('❌ ' + (data.error || 'Delete failed'));
+      }
+    } catch (err) { showToast('Error: ' + err.message); }
+  };
+
+  // Delete entire batch
+  const handleDeleteBatch = async (batchId, count) => {
+    if (!confirm(`Delete ALL ${count || ''} vouchers in batch "${batchId}"?\n\nThis removes them from the database and the router. This action cannot be undone.`)) return;
+    try {
+      const res = await fetch('/api/mikrotik/generate-vouchers', {
+        method: 'DELETE',
+        headers: adminHeaders(),
+        body: JSON.stringify({ batch_id: batchId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`🗑️ Deleted batch ${batchId}: ${data.deleted} vouchers removed (${data.router_removed} from router)`);
+        // If current view shows this batch, clear it
+        if (genResult?.batch_id === batchId) {
+          setGenResult(null);
+          setGeneratedVouchers([]);
+        }
+        fetchBatchHistory();
+      } else {
+        showToast('❌ ' + (data.error || 'Batch delete failed'));
+      }
+    } catch (err) { showToast('Error: ' + err.message); }
   };
 
   // Load Past Batch into Card Studio
@@ -3730,7 +3775,7 @@ export default function SuperAdminPage() {
                       <input
                         value={voucherGen.prefix}
                         onChange={e => setVoucherGen({ ...voucherGen, prefix: e.target.value.toUpperCase() })}
-                        placeholder="e.g. WIFI-, ASUK-, VIP-"
+                        placeholder="Optional prefix (leave empty for numbers only)"
                       />
                     </div>
 
@@ -4025,7 +4070,27 @@ export default function SuperAdminPage() {
                               </div>
                               <div className="sa-voucher-card-meta">
                                 <span>{v.expiry || v.duration || genResult.expiry_label}</span>
-                                <span className="sa-badge sa-badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>Active</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span className="sa-badge sa-badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>Active</span>
+                                  {v.id && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteGeneratedVoucher(v); }}
+                                      style={{
+                                        background: 'rgba(239, 68, 68, 0.15)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        borderRadius: 4,
+                                        color: '#fca5a5',
+                                        cursor: 'pointer',
+                                        fontSize: 10,
+                                        padding: '2px 5px',
+                                        lineHeight: 1,
+                                      }}
+                                      title="Delete this voucher"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -4238,10 +4303,11 @@ export default function SuperAdminPage() {
                               <code style={{ color: '#A78BFA', fontWeight: 600 }}>{b.batch_id}</code>
                             </td>
                             <td>
-                              <strong>{b.profile_name || 'Standard Pass'}</strong>
+                              <strong>{b.plan_name || 'Standard Pass'}</strong>
                             </td>
                             <td>
-                              <span className="sa-badge sa-badge-purple">{b.count} cards</span>
+                              <span className="sa-badge sa-badge-purple">{b.total} cards</span>
+                              {b.used > 0 && <span className="sa-badge sa-badge-muted" style={{ marginLeft: 4, fontSize: 10 }}>{b.used} used</span>}
                             </td>
                             <td>
                               <span className="sa-badge" style={{
@@ -4263,6 +4329,14 @@ export default function SuperAdminPage() {
                                   title="Load all vouchers in this batch into the Card Studio for printing or downloading"
                                 >
                                   🎨 Open in Studio
+                                </button>
+                                <button
+                                  className="sa-btn-pill-small"
+                                  style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#fca5a5', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                  onClick={() => handleDeleteBatch(b.batch_id, b.total)}
+                                  title="Delete all vouchers in this batch"
+                                >
+                                  🗑️ Delete Batch
                                 </button>
                               </div>
                             </td>

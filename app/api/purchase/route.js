@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server.js';
 import { supabaseAdmin } from '@/lib/supabase-server.js';
-import { createHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik.js';
+import { createOrQueueHotspotUser, isMikroTikConfigured } from '@/lib/mikrotik.js';
 import { validateUserAuth, userUnauthorizedResponse } from '@/lib/user-auth.js';
 import { generateUniqueCode, generateWalletTxRef } from '@/lib/voucher-utils.js';
 
@@ -108,8 +108,9 @@ export async function POST(request) {
     let planUploadSpeed = authoritativePlan.upload_speed || '12M';
     let planDownloadSpeed = authoritativePlan.download_speed || '12M';
 
-    // If sharing is disabled globally, force 1 device
-    if (!hotspotSettings.sharing_enabled) {
+    // If sharing is disabled globally AND the plan doesn't explicitly set devices > 1, force 1
+    // But if the plan explicitly defines its own device count, always respect it
+    if (!hotspotSettings.sharing_enabled && !(Number(authoritativePlan.devices) > 1)) {
       planDevices = 1;
     }
 
@@ -152,7 +153,7 @@ export async function POST(request) {
 
     if (mikrotikConfigured) {
       try {
-        routerResult = await createHotspotUser({
+        routerResult = await createOrQueueHotspotUser({
           code,
           password: code,
           profile: effectivePlanName,
