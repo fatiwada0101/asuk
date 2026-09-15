@@ -2336,7 +2336,14 @@ export default function SuperAdminPage() {
       if (res.ok) {
         setGenResult(data);
         setGeneratedVouchers(data.vouchers || []);
-        showToast(`✅ Generated ${data.generated} vouchers (${data.failed} failed)`);
+        if (data.generated === 0 && data.failed > 0) {
+          const firstErr = data.errors?.[0]?.error || 'Unknown error';
+          showToast(`❌ All ${data.failed} vouchers failed: ${firstErr}`);
+        } else if (data.failed > 0) {
+          showToast(`⚠️ Generated ${data.generated} vouchers (${data.failed} failed: ${data.errors?.[0]?.error || 'unknown'})`);
+        } else {
+          showToast(`✅ Generated ${data.generated} vouchers successfully!`);
+        }
         fetchCoreData();
         fetchBatchHistory();
       } else {
